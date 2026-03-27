@@ -1,5 +1,23 @@
 # Solace / Vera Observability System
 
+## Quick Start (1 minute)
+
+Run the full pipeline:
+
+python run_full_pipeline.py scenarios/phase3_tests_v2.csv
+
+What this does:
+- Processes scenarios through a 4-phase decision pipeline
+- Generates justification records before action
+- Validates and enforces constraints
+- Tracks behavior over time (Phase 4 analysis)
+
+After running, check:
+- phase4_outputs/ for summaries
+- phase4_history/ for accumulated decisions
+
+- ---
+
 ## Overview
 
 This project implements a 4-phase decision pipeline designed to introduce structured observability before action commitment in AI systems.
