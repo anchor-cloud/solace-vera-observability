@@ -89,12 +89,13 @@ This system introduces an **action-commitment boundary**, where:
 ## How to Run
 Run the full pipeline using the default scenario file:
 
-python run_full_pipeline.py
+python run_full_pipeline.py scenarios/phase3_tests_v2.csv
 
 Or provide your own scenario file:
 
 python run_full_pipeline.py scenarios/phase3_tests_v2.csv
-Output Locations
+
+## Output Locations
 
 After running, outputs are written to:
 
