@@ -48,9 +48,10 @@ Scenario inputs:
 
 ## Requirements
 
-- **Python 3.11+** (the pipeline imports `UTC` via `from datetime import datetime, UTC`)
+- **Python 3.11+** (required for `datetime.UTC`)
 - No external dependencies (stdlib only)
-
+- Run from a terminal/command prompt in the repo root directory
+  
 ## Quick Start
 
 Run from the **repo root** (the directory containing `run_full_pipeline.py`).
