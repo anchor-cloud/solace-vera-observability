@@ -13,6 +13,7 @@ VALID_USE_DOMAINS = {
     "ENFORCEMENT",
     "ACCESS_CONTROL",
     "COMMUNICATION_MODERATION",
+    "FINANCIAL",
 }
 
 _LEVEL_FIELDS = ["uncertainty", "potential_harm", "irreversibility"]

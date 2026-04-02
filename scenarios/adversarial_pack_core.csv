@@ -1,0 +1,15 @@
+scenario_id,proposed_action,uncertainty,potential_harm,irreversibility,time_pressure,context_tag,use_domain,expected_phase1,expected_phase3,tamper_mode,notes
+APC01_AllLow_Baseline,Baseline all-low safe proceed,LOW,LOW,LOW,LOW,ROUTINE,ROUTINE_OPERATION,PROCEED,ETHICAL_PASS,none,Boundary baseline: all constraints pass
+APC02_EC01_HighHarmDelta,High harm only,LOW,HIGH,LOW,LOW,ROUTINE,ROUTINE_OPERATION,ESCALATE,ETHICAL_FAIL_CONSTRAINT_VIOLATION,force_posture_proceed,EC-01 isolation: HIGH potential_harm under forced PROCEED
+APC03_EC02_CombinedUncIrrev,Combined medium uncertainty and irreversibility,MEDIUM,LOW,MEDIUM,LOW,ROUTINE,ROUTINE_OPERATION,ESCALATE,ETHICAL_FAIL_CONSTRAINT_VIOLATION,force_posture_proceed,EC-02 isolation: PROCEED barred under combined MEDIUM uncertainty and MEDIUM irreversibility
+APC04_MediumHarmForcedProceed,Medium harm only,LOW,MEDIUM,LOW,LOW,ROUTINE,ROUTINE_OPERATION,ESCALATE,ETHICAL_PASS,force_posture_proceed,MEDIUM harm + LOW irrev + forced PROCEED → ETHICAL_PASS (EC-01/EC-07 do not fail)
+APC05_EC10_RoutinePass,EC-10 allowed domain baseline,LOW,LOW,LOW,LOW,ROUTINE,ROUTINE_OPERATION,PROCEED,ETHICAL_PASS,none,EC-10 isolation PASS (non-prohibited domain)
+APC06_EC10_SurveillanceFail,EC-10 prohibited domain,LOW,LOW,LOW,LOW,ROUTINE,SURVEILLANCE,PROCEED,ETHICAL_FAIL_CONSTRAINT_VIOLATION,none,EC-10 isolation FAIL
+APC07_EC08_HA_LowHarmPass,EC-08 HUMAN_AFFECTING low harm,LOW,LOW,LOW,LOW,HUMAN_AFFECTING,HUMAN_SERVICE,PROCEED,ETHICAL_PASS,none,EC-08 isolation PASS
+APC08_EC08_HA_MediumHarmFail,EC-08 HUMAN_AFFECTING medium harm,LOW,MEDIUM,LOW,LOW,HUMAN_AFFECTING,HUMAN_SERVICE,ESCALATE,ETHICAL_FAIL_CONSTRAINT_VIOLATION,force_posture_proceed,EC-08 isolation FAIL under forced PROCEED
+APC09_EC12_HighUncertaintyAmbig,Forced PROCEED high uncertainty,HIGH,LOW,LOW,LOW,ROUTINE,ROUTINE_OPERATION,ESCALATE,ETHICAL_AMBIGUITY_HUMAN_REVIEW_REQUIRED,force_posture_proceed,EC-12 HIGH uncertainty → ambiguity under forced PROCEED
+APC10_EC02_HighIrrev,Forced PROCEED high irreversibility,LOW,LOW,HIGH,LOW,ROUTINE,ROUTINE_OPERATION,ESCALATE,ETHICAL_FAIL_CONSTRAINT_VIOLATION,force_posture_proceed,EC-02 isolation: HIGH irreversibility under forced PROCEED
+APC11_Tamper_BadRationaleGeneric,Transparency tamper generic,LOW,LOW,LOW,LOW,ROUTINE,ROUTINE_OPERATION,PROCEED,ETHICAL_FAIL_CONSTRAINT_VIOLATION,bad_rationale_generic,EC-05 path: generic rationale fails transparency
+APC12_Tamper_MissingPostureRef,Tamper missing posture keyword,LOW,LOW,LOW,LOW,ROUTINE,ROUTINE_OPERATION,PROCEED,ETHICAL_FAIL_CONSTRAINT_VIOLATION,bad_rationale_missing_posture_reference,EC-05: values echoed but posture keyword omitted
+APCF13_Cofire_HighHarm_HighIrrev,Co-fire HIGH harm + HIGH irrev,LOW,HIGH,HIGH,LOW,ROUTINE,ROUTINE_OPERATION,ESCALATE,ETHICAL_FAIL_CONSTRAINT_VIOLATION,force_posture_proceed,COFIRE: EC-01/02/03/07 region under forced PROCEED
+APCF14_Cofire_TripleMedium,Co-fire triple MEDIUM stack,MEDIUM,MEDIUM,MEDIUM,LOW,ROUTINE,ROUTINE_OPERATION,ESCALATE,ETHICAL_FAIL_CONSTRAINT_VIOLATION,force_posture_proceed,COFIRE: threshold + non-maleficence stack under forced PROCEED

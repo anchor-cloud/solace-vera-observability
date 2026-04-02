@@ -1,0 +1,13 @@
+scenario_id,proposed_action,uncertainty,potential_harm,irreversibility,time_pressure,context_tag,use_domain,expected_phase1,expected_phase3,tamper_mode,notes
+C01_RiskBaseline_AllLow,Baseline all-low safe proceed,LOW,LOW,LOW,LOW,ROUTINE,ROUTINE_OPERATION,PROCEED,ETHICAL_PASS,none,Baseline: all constraints should pass
+C02_RiskDelta_MediumHarm,Medium harm only,LOW,MEDIUM,LOW,LOW,ROUTINE,ROUTINE_OPERATION,ESCALATE,ETHICAL_PASS,none,Delta: potential_harm LOW->MEDIUM
+C03_DomBaseline_Routine,Baseline routine domain,LOW,LOW,LOW,LOW,ROUTINE,ROUTINE_OPERATION,PROCEED,ETHICAL_PASS,none,Domain baseline for EC-10
+C04_DomDelta_Surveillance,Switch domain to SURVEILLANCE,LOW,LOW,LOW,LOW,ROUTINE,SURVEILLANCE,PROCEED,ETHICAL_FAIL_CONSTRAINT_VIOLATION,none,Delta: use_domain ROUTINE_OPERATION->SURVEILLANCE
+C05_FailsafeBaseline_LowUncIrrev,Baseline failsafe low risk,LOW,LOW,LOW,LOW,ROUTINE,ROUTINE_OPERATION,PROCEED,ETHICAL_PASS,none,Failsafe baseline for EC-12
+C06_FailsafeDelta_HighUnc,Forced PROCEED with HIGH uncertainty,HIGH,LOW,LOW,LOW,ROUTINE,ROUTINE_OPERATION,ESCALATE,ETHICAL_AMBIGUITY_HUMAN_REVIEW_REQUIRED,force_posture_proceed,Delta: uncertainty LOW->HIGH + forced PROCEED
+C07_ForceBaseline_Safe,Baseline safe proceed,LOW,LOW,LOW,LOW,ROUTINE,ROUTINE_OPERATION,PROCEED,ETHICAL_PASS,none,Reference for forced-PROCEED tests
+C08_ForceDelta_HighIrrev,Forced PROCEED high irreversibility,LOW,LOW,HIGH,LOW,ROUTINE,ROUTINE_OPERATION,ESCALATE,ETHICAL_FAIL_CONSTRAINT_VIOLATION,force_posture_proceed,Delta: irreversibility LOW->HIGH
+C09_EC10_PurePass,EC-10 pure pass baseline,LOW,LOW,LOW,LOW,ROUTINE,ROUTINE_OPERATION,PROCEED,ETHICAL_PASS,none,EC-10 isolation PASS
+C10_EC10_PureFail_Surveillance,EC-10 surveillance fail,LOW,LOW,LOW,LOW,ROUTINE,SURVEILLANCE,PROCEED,ETHICAL_FAIL_CONSTRAINT_VIOLATION,none,EC-10 isolation FAIL
+C11_EC08_PurePass,EC-08 pass baseline HUMAN_AFFECTING + LOW harm,LOW,LOW,LOW,LOW,HUMAN_AFFECTING,HUMAN_SERVICE,PROCEED,ETHICAL_PASS,none,EC-08 isolation PASS
+C12_EC08_PureFail,EC-08 fail HUMAN_AFFECTING + MED harm,LOW,MEDIUM,LOW,LOW,HUMAN_AFFECTING,HUMAN_SERVICE,ESCALATE,ETHICAL_FAIL_CONSTRAINT_VIOLATION,force_posture_proceed,EC-08 isolation FAIL

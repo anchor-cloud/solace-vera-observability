@@ -1,5 +1,5 @@
 scenario_id,proposed_action,uncertainty,potential_harm,irreversibility,time_pressure,context_tag,use_domain,expected_phase1,expected_phase3,tamper_mode,notes
-P401,Safe low-risk routine action,MEDIUM,MEDIUM,LOW,LOW,PROCEED,ROUTINE_OPERATION,PROCEED,ETHICAL_PASS,none,Pass baseline
+P401,Safe low-risk routine action,MEDIUM,MEDIUM,LOW,LOW,ROUTINE,ROUTINE_OPERATION,ESCALATE,ETHICAL_PASS,none,Pass baseline
 P402,Medium uncertainty low harm low irreversibility,MEDIUM,LOW,LOW,LOW,ROUTINE,ROUTINE_OPERATION,PAUSE,ETHICAL_PASS,none,Pause remains ethically admissible
 P403,High harm case escalates before ethics gate,LOW,HIGH,LOW,LOW,ROUTINE,ROUTINE_OPERATION,ESCALATE,ETHICAL_PASS,none,Escalation should still be ethically admissible
 P404,Forced proceed with high harm,LOW,HIGH,LOW,LOW,ROUTINE,ROUTINE_OPERATION,ESCALATE,ETHICAL_FAIL_CONSTRAINT_VIOLATION,force_posture_proceed,Non-maleficence should fail
