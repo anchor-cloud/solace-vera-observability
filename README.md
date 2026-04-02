@@ -10,11 +10,11 @@ This system is intended to function as a **pre-action auditing layer**, exposing
 
 The system is designed to be directly testable via scenario packs, allowing failure modes to be observed and analyzed across phases.
 
-Important scope note:
+## Important scope note:
 - This is **not** a model.
 - This project does **not** claim to solve alignment.
 
-Phases (high level):
+## Phases (high level):
 - **Phase 1** (`phase1_rebuild.py`): posture + rationale (`PROCEED` / `PAUSE` / `ESCALATE`)
 - **Phase 2** (`phase2_gate.py`): validates Phase 1 record integrity and enforces structural gating rules
 - **Phase 3** (`phase3_gate.py`): constraint evaluation (`ETHICAL_PASS` / `ETHICAL_FAIL_CONSTRAINT_VIOLATION` / `ETHICAL_AMBIGUITY_HUMAN_REVIEW_REQUIRED`)
@@ -68,7 +68,7 @@ This system is designed to expose how decisions behave under layered constraints
 When reviewing outputs, focus on:
 
 - **Posture selection (Phase 1)**  
-  Does the system choose PROCEED in cases where uncertainty, harm, or irreversibility suggest escalation?
+  Does the system choose `PROCEED` in cases where uncertainty, harm, or irreversibility suggest escalation?
 
 - **Validation behavior (Phase 2)**  
   Are structurally invalid or inconsistent decisions rejected?
@@ -95,4 +95,3 @@ The goal is not to match expected labels, but to observe whether unsafe decision
 - Rule-based and deterministic by design.
 - If scenario fields are mislabeled as low-risk, Phase 1 may still produce `PROCEED` unless downstream constraints catch it.
 - Phase 4 history is append-only; repeated runs accumulate in `phase4_history/phase4_history.jsonl`.
-notepad README.md
