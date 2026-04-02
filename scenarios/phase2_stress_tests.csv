@@ -1,0 +1,8 @@
+scenario_id,proposed_action,uncertainty,potential_harm,irreversibility,time_pressure,context_tag,use_domain,expected_phase1,expected_phase3,tamper_mode,notes
+P2-01,Baseline low risk all dimensions,LOW,LOW,LOW,LOW,ROUTINE,ROUTINE_OPERATION,PROCEED,ETHICAL_PASS,none,Phase2 stress baseline
+P2-02,High harm forces escalation before ethics,LOW,HIGH,LOW,LOW,ROUTINE,ROUTINE_OPERATION,ESCALATE,ETHICAL_PASS,none,Phase2 stress ESCALATE path
+P2-03,Medium uncertainty pause path,MEDIUM,LOW,LOW,LOW,ROUTINE,ROUTINE_OPERATION,PAUSE,ETHICAL_PASS,none,Phase2 stress PAUSE record
+P2-NPR,Document NPR not reachable via Phase1,LOW,LOW,LOW,LOW,ROUTINE,ROUTINE_OPERATION,PROCEED,ETHICAL_PASS,none,NPR requires manual validate_record; pipeline behaves like baseline
+P2-04,,LOW,LOW,LOW,LOW,ROUTINE,ROUTINE_OPERATION,PROCEED,ETHICAL_PASS,none,Empty proposed_action verify DictReader empty string
+P2-06,Invalid context tag for Phase1,LOW,LOW,LOW,LOW,INVALID_TAG,ROUTINE_OPERATION,,,none,Phase1 ValueError invalid context_tag
+P2-07,Invalid uncertainty level for Phase1,NOT_A_LEVEL,LOW,LOW,LOW,ROUTINE,ROUTINE_OPERATION,,,none,Phase1 ValueError invalid uncertainty
