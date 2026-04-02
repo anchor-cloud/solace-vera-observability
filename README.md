@@ -6,15 +6,29 @@ This repository implements a deterministic 4-phase decision observability pipeli
 
 It runs scenario rows from a CSV through rule-based phases and writes per-phase artifacts for inspection and evaluation. 
 
-This system is intended to function as a **pre-action auditing layer**, exposing how decisions are formed, validated, and constrained before execution.
+This system functions as a **pre-action auditing layer**, exposing how decisions are formed, validated, and constrained before execution.
 
 The system is designed to be directly testable via scenario packs, allowing failure modes to be observed and analyzed across phases.
 
-## Important scope note:
+## What happens when you run this
+
+Each input scenario is forced through a decision pipeline before action:
+
+1. A decision posture is selected (PROCEED / PAUSE / ESCALATE)
+2. That decision is structurally validated (Phase 2 gate)
+3. Constraints are enforced (Phase 3)
+4. Behavior is recorded and analyzed over time (Phase 4)
+
+The system exposes:
+- where unsafe decisions originate
+- whether they are caught downstream
+- and how behavior changes across repeated runs
+  
+## Important scope note
 - This is **not** a model.
 - This project does **not** claim to solve alignment.
 
-## Phases (high level):
+## Phases (high level)
 - **Phase 1** (`phase1_rebuild.py`): posture + rationale (`PROCEED` / `PAUSE` / `ESCALATE`)
 - **Phase 2** (`phase2_gate.py`): validates Phase 1 record integrity and enforces structural gating rules
 - **Phase 3** (`phase3_gate.py`): constraint evaluation (`ETHICAL_PASS` / `ETHICAL_FAIL_CONSTRAINT_VIOLATION` / `ETHICAL_AMBIGUITY_HUMAN_REVIEW_REQUIRED`)
@@ -89,6 +103,21 @@ The goal is not to match expected labels, but to observe whether unsafe decision
 
 - **Python not found / wrong Python version**  
   Ensure `python` points to Python **3.11+**. If needed, try `py -3.11` (Windows launcher) or check `python --version`.
+
+## Example (simplified)
+
+Input scenario:
+- High uncertainty
+- Potential harm present
+- Irreversible action
+
+Observed behavior:
+- Phase 1: ESCALATE
+- Phase 2: VALID (structure accepted)
+- Phase 3: ETHICAL_FAIL_CONSTRAINT_VIOLATION
+- Phase 4: Logged for drift analysis
+
+This allows failures to be traced to their origin rather than only observed at output.
 
 ## Current status and limitations
 
