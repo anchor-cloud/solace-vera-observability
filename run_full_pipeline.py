@@ -1,5 +1,6 @@
 import csv
 import json
+import subprocess
 from dataclasses import asdict, is_dataclass
 from datetime import datetime, UTC
 from pathlib import Path 
@@ -9,7 +10,7 @@ from collections import Counter
 
 from phase1_rebuild import evaluate_phase1
 from phase2_gate import validate_record
-from phase3_gate import evaluate_phase3
+from phase3_gate import evaluate_phase3, evaluate_phase3_independent
 
 
 PIPELINE_HISTORY_PATH = Path("phase4_history") / "phase4_history.jsonl"
@@ -35,6 +36,66 @@ def write_json(path: Path, payload: Dict[str, Any]) -> None:
 
 def safe_upper(value: str) -> str:
     return (value or "").strip().upper()
+
+
+def compute_final_execution_gate(
+    phase1_posture: str,
+    phase2_outcome: str,
+    phase3_output: str,
+) -> Dict[str, Any]:
+    """
+    Autonomous execution gate from actual Phase 1 posture (untampered record),
+    Phase 2 outcome from validate_record (normalized), and Phase 3 output
+    from phase3_result["phase3_output"]. Pure function; no side effects.
+    """
+    p1 = safe_upper(phase1_posture)
+    p2 = safe_upper(phase2_outcome)
+    p3 = safe_upper(phase3_output)
+
+    if p1 != "PROCEED":
+        return {
+            "execution_allowed": False,
+            "final_disposition": "BLOCKED_BY_PHASE1_POSTURE",
+            "stop_reason": f"Phase 1 posture is {p1}; autonomous execution is not allowed.",
+        }
+    if p2 == "ESCALATE":
+        return {
+            "execution_allowed": False,
+            "final_disposition": "BLOCKED_BY_PHASE2_ESCALATION",
+            "stop_reason": "Phase 2 requires escalation before execution.",
+        }
+    if p2 in {"REJECT", "REJECT_NEW_POSTURE_REQUIRED"}:
+        return {
+            "execution_allowed": False,
+            "final_disposition": "BLOCKED_BY_PHASE2_REJECTION",
+            "stop_reason": f"Phase 2 outcome is {p2}; autonomous execution is not allowed.",
+        }
+    if p3 == "ETHICAL_FAIL_CONSTRAINT_VIOLATION":
+        return {
+            "execution_allowed": False,
+            "final_disposition": "BLOCKED_BY_PHASE3_FAIL",
+            "stop_reason": "Phase 3 ethical evaluation reported a constraint violation.",
+        }
+    if p3 == "ETHICAL_AMBIGUITY_HUMAN_REVIEW_REQUIRED":
+        return {
+            "execution_allowed": False,
+            "final_disposition": "BLOCKED_BY_PHASE3_AMBIGUITY",
+            "stop_reason": "Phase 3 requires human review for unresolved ambiguity.",
+        }
+    if p1 == "PROCEED" and p2 == "PROCEED" and p3 == "ETHICAL_PASS":
+        return {
+            "execution_allowed": True,
+            "final_disposition": "EXECUTION_ALLOWED",
+            "stop_reason": "Phase 1 PROCEED, Phase 2 PROCEED, and Phase 3 ETHICAL_PASS.",
+        }
+    return {
+        "execution_allowed": False,
+        "final_disposition": "BLOCKED_UNKNOWN_STATE",
+        "stop_reason": (
+            f"Unexpected combination: Phase 1={p1}, Phase 2={p2}, Phase 3={p3}; "
+            f"autonomous execution is not allowed."
+        ),
+    }
 
 
 def load_scenarios(csv_path: Path) -> List[Dict[str, str]]:
@@ -230,6 +291,35 @@ def save_phase4_summary(summary: Dict[str, Any]) -> None:
         f.write("\n".join(txt_lines))
 
 
+def run_post_run_evaluator(outdir: Path, csv_path: Path) -> None:
+    """
+    Run the external safety_net_evaluator on this run folder. Failures are non-fatal for
+    pipeline artifacts (outputs remain valid).
+    """
+    evaluator_script = Path(__file__).resolve().parent / "safety_net_evaluator.py"
+    json_out = outdir / "safety_net_eval.json"
+    csv_out = outdir / "safety_net_eval.csv"
+    try:
+        subprocess.run(
+            [
+                sys.executable,
+                str(evaluator_script),
+                str(outdir.resolve()),
+                str(csv_path.resolve()),
+            ],
+            check=True,
+        )
+        print(f"Safety net evaluator JSON: {json_out.resolve()}")
+        print(f"Safety net evaluator CSV: {csv_out.resolve()}")
+    except (subprocess.CalledProcessError, OSError) as exc:
+        print(
+            "WARNING: Pipeline run completed, but the post-run safety net evaluator failed "
+            f"({type(exc).__name__}: {exc}). Pipeline outputs in "
+            f"{outdir.resolve()} are unchanged.",
+            file=sys.stderr,
+        )
+
+
 def main() -> None:
     if len(sys.argv) > 1:
         csv_path = Path(sys.argv[1])
@@ -294,7 +384,8 @@ def main() -> None:
             # -------------------------
             # Phase 2
             # -------------------------
-            phase2_outcome, phase2_reason = validate_record(phase1_record)
+            raw_phase2_outcome, phase2_reason = validate_record(phase1_record)
+            phase2_outcome = safe_upper(raw_phase2_outcome)
             phase2_result = {
                 "scenario_id": scenario_id,
                 "phase2_outcome": phase2_outcome,
@@ -306,8 +397,17 @@ def main() -> None:
             # Phase 3
             # -------------------------
             phase3_input_record = apply_phase3_tamper_mode(phase1_record, tamper_mode)
+
             phase3_result = evaluate_phase3(phase3_input_record)
+            phase3_counterfactual = evaluate_phase3_independent(phase3_input_record)
+
             actual_phase3 = safe_upper(phase3_result.get("phase3_output", ""))
+
+            final_execution_gate = compute_final_execution_gate(
+                actual_phase1,
+                phase2_outcome,
+                actual_phase3,
+            )
 
             write_json(
                 phase3_dir / f"{scenario_id}_phase3.json",
@@ -316,6 +416,8 @@ def main() -> None:
                     "tamper_mode": tamper_mode,
                     "phase3_input_record": phase3_input_record,
                     "phase3_result": phase3_result,
+                    "phase3_counterfactual": phase3_counterfactual,
+                    "final_execution_gate": final_execution_gate,
                 },
             )
 
@@ -345,6 +447,9 @@ def main() -> None:
                 "context_tag": phase1_record.get("context_tag", ""),
                 "use_domain": phase1_record.get("use_domain", ""),
                 "pass": test_pass,
+                "execution_allowed": final_execution_gate["execution_allowed"],
+                "final_disposition": final_execution_gate["final_disposition"],
+                "stop_reason": final_execution_gate["stop_reason"],
             }
             append_phase4_history(history_entry)
 
@@ -357,6 +462,9 @@ def main() -> None:
                         f"  Phase 1: {actual_phase1} (expected {expected_phase1})",
                         f"  Phase 2: {phase2_outcome}",
                         f"  Phase 3: {actual_phase3} (expected {expected_phase3})",
+                        f"  Final disposition: {final_execution_gate['final_disposition']}",
+                        f"  Execution allowed: {final_execution_gate['execution_allowed']}",
+                        f"  Stop reason: {final_execution_gate['stop_reason']}",
                         f"  Violated constraints: {phase3_result.get('violated_constraints', [])}",
                         f"  Unresolved constraints: {phase3_result.get('unresolved_constraints', [])}",
                         f"  PASS: {test_pass}",
@@ -394,6 +502,8 @@ def main() -> None:
     print(f"Finished. Output written to: {outdir}")
     print(f"Phase 4 canonical history: {PIPELINE_HISTORY_PATH}")
     print(f"Phase 4 summaries refreshed in: {PIPELINE_SUMMARY_DIR}")
+
+    run_post_run_evaluator(outdir, csv_path)
 
 
 if __name__ == "__main__":
