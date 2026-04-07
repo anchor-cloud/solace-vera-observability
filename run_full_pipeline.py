@@ -11,7 +11,7 @@ from collections import Counter
 
 from phase1_rebuild import evaluate_phase1
 from phase2_gate import validate_record
-from phase3_gate import evaluate_phase3, evaluate_phase3_independent
+from phase3_gate import evaluate_phase3
 
 
 PIPELINE_HISTORY_PATH = Path("phase4_history") / "phase4_history.jsonl"
@@ -449,10 +449,8 @@ def main() -> None:
                         }
                     ],
                 }
-                phase3_counterfactual = None
             else:
                 phase3_result = evaluate_phase3(phase3_input_record)
-                phase3_counterfactual = evaluate_phase3_independent(phase3_input_record)
 
             phase2_result = {
                 "scenario_id": scenario_id,
@@ -487,7 +485,6 @@ def main() -> None:
                             "(posture/rationale/fields mutated)."
                         ),
                     },
-                    "phase3_counterfactual": phase3_counterfactual,
                     "final_execution_gate": final_execution_gate,
                 },
             )
