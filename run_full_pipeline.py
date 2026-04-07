@@ -1,4 +1,5 @@
 import csv
+import hashlib
 import json
 import subprocess
 from dataclasses import asdict, is_dataclass
@@ -36,6 +37,34 @@ def write_json(path: Path, payload: Dict[str, Any]) -> None:
 
 def safe_upper(value: str) -> str:
     return (value or "").strip().upper()
+
+
+CANONICAL_FIELDS = [
+    "scenario_id",
+    "proposed_action",
+    "uncertainty",
+    "potential_harm",
+    "irreversibility",
+    "time_pressure",
+    "posture",
+    "rationale",
+    "context_tag",
+    "use_domain",
+]
+
+
+def canonical_phase2_validated_view(record: Dict[str, Any]) -> Dict[str, Any]:
+    return {field: record.get(field, "") for field in CANONICAL_FIELDS}
+
+
+def fingerprint_record_view(view: Dict[str, Any]) -> str:
+    payload = json.dumps(
+        view,
+        sort_keys=True,
+        separators=(",", ":"),
+        ensure_ascii=False,
+    ).encode("utf-8")
+    return hashlib.sha256(payload).hexdigest()
 
 
 def compute_final_execution_gate(
@@ -386,20 +415,51 @@ def main() -> None:
             # -------------------------
             raw_phase2_outcome, phase2_reason = validate_record(phase1_record)
             phase2_outcome = safe_upper(raw_phase2_outcome)
-            phase2_result = {
-                "scenario_id": scenario_id,
-                "phase2_outcome": phase2_outcome,
-                "phase2_reason": phase2_reason,
-            }
-            write_json(phase2_dir / f"{scenario_id}_phase2.json", phase2_result)
 
             # -------------------------
             # Phase 3
             # -------------------------
             phase3_input_record = apply_phase3_tamper_mode(phase1_record, tamper_mode)
 
-            phase3_result = evaluate_phase3(phase3_input_record)
-            phase3_counterfactual = evaluate_phase3_independent(phase3_input_record)
+            phase2_validated_fingerprint = fingerprint_record_view(
+                canonical_phase2_validated_view(phase1_record)
+            )
+            phase3_input_fingerprint = fingerprint_record_view(
+                canonical_phase2_validated_view(phase3_input_record)
+            )
+            provenance_match = phase2_validated_fingerprint == phase3_input_fingerprint
+
+            if not provenance_match:
+                phase2_outcome = "REJECT_NEW_POSTURE_REQUIRED"
+                phase2_reason = (
+                    "Integrity failure: Phase 3 input record differs from Phase 2–validated record "
+                    "(posture/rationale/fields mutated)."
+                )
+                phase3_result = {
+                    "phase3_output": "ETHICAL_FAIL_CONSTRAINT_VIOLATION",
+                    "violated_constraints": ["EC-11"],
+                    "unresolved_constraints": [],
+                    "trace": [
+                        {
+                            "constraint_id": "EC-11",
+                            "constraint_name": "System Integrity and Anti-Tamper Protection",
+                            "status": "FAIL",
+                            "message": "Integrity failure: Phase 3 input differs from Phase 2–validated record (provenance mismatch).",
+                            "implemented": True,
+                        }
+                    ],
+                }
+                phase3_counterfactual = None
+            else:
+                phase3_result = evaluate_phase3(phase3_input_record)
+                phase3_counterfactual = evaluate_phase3_independent(phase3_input_record)
+
+            phase2_result = {
+                "scenario_id": scenario_id,
+                "phase2_outcome": phase2_outcome,
+                "phase2_reason": phase2_reason,
+            }
+            write_json(phase2_dir / f"{scenario_id}_phase2.json", phase2_result)
 
             actual_phase3 = safe_upper(phase3_result.get("phase3_output", ""))
 
@@ -416,6 +476,17 @@ def main() -> None:
                     "tamper_mode": tamper_mode,
                     "phase3_input_record": phase3_input_record,
                     "phase3_result": phase3_result,
+                    "provenance_check": {
+                        "canonical_fields": CANONICAL_FIELDS,
+                        "phase2_validated_fingerprint": phase2_validated_fingerprint,
+                        "phase3_input_fingerprint": phase3_input_fingerprint,
+                        "match": provenance_match,
+                        "on_mismatch_phase2_outcome": "REJECT_NEW_POSTURE_REQUIRED",
+                        "on_mismatch_phase2_reason": (
+                            "Integrity failure: Phase 3 input record differs from Phase 2–validated record "
+                            "(posture/rationale/fields mutated)."
+                        ),
+                    },
                     "phase3_counterfactual": phase3_counterfactual,
                     "final_execution_gate": final_execution_gate,
                 },
