@@ -531,14 +531,20 @@ def summarize(rows: List[ScenarioEval]) -> RunSummary:
 def run_evaluation(
     run_dir: Path,
     scenario_csv: Path,
-) -> Tuple[List[ScenarioEval], RunSummary]:
+) -> Tuple[List[ScenarioEval], RunSummary, List[str]]:
     run_dir = run_dir.resolve()
     spec = load_scenario_csv(scenario_csv)
     out: List[ScenarioEval] = []
+    skipped: List[str] = []
     for row in spec:
-        if not row.get("scenario_id", "").strip():
+        sid = row.get("scenario_id", "").strip()
+        if not sid:
             continue
-        out.append(evaluate_scenario(row, run_dir))
+        try:
+            out.append(evaluate_scenario(row, run_dir))
+        except (ValueError, FileNotFoundError) as exc:
+            skipped.append(f"{sid}: {exc}")
+            continue
     summary = summarize(out)
     summary = RunSummary(
         run_dir=str(run_dir),
@@ -554,7 +560,7 @@ def run_evaluation(
         protective_capture_rate=summary.protective_capture_rate,
         ruleset_version=summary.ruleset_version,
     )
-    return out, summary
+    return out, summary, skipped
 
 
 def write_outputs(
@@ -562,11 +568,14 @@ def write_outputs(
     summary: RunSummary,
     out_json: Path,
     out_csv: Optional[Path] = None,
+    skipped_scenarios: Optional[List[str]] = None,
 ) -> None:
     payload = {
         "ruleset_version": SAFETY_NET_RULESET_VERSION,
         "summary": asdict(summary),
         "scenarios": [asdict(s) for s in per_scenario],
+        "skipped_count": len(skipped_scenarios) if skipped_scenarios else 0,
+        "skipped_scenarios": skipped_scenarios or [],
     }
     out_json.parent.mkdir(parents=True, exist_ok=True)
     out_json.write_text(json.dumps(payload, indent=2, ensure_ascii=False), encoding="utf-8")
@@ -609,8 +618,8 @@ def main() -> None:
     out_json = args.out_json or (run_dir / "safety_net_eval.json")
     out_csv = args.out_csv if args.out_csv is not None else (run_dir / "safety_net_eval.csv")
 
-    per, summ = run_evaluation(run_dir, args.scenario_csv)
-    write_outputs(per, summ, out_json, out_csv)
+    per, summ, skipped = run_evaluation(run_dir, args.scenario_csv)
+    write_outputs(per, summ, out_json, out_csv, skipped_scenarios=skipped)
     print(f"Wrote {out_json}")
     print(f"Wrote {out_csv}")
     print(json.dumps(asdict(summ), indent=2))
