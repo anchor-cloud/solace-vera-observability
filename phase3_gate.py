@@ -2,6 +2,8 @@ import json
 import re
 from pathlib import Path
 
+from phase3_text_helpers import normalize_text, phrase_window_match
+
 
 VALID_POSTURES = {"PROCEED", "PAUSE", "ESCALATE"}
 VALID_LEVELS = {"LOW", "MEDIUM", "HIGH"}
@@ -76,6 +78,11 @@ VALID_PARTICIPATION_INFORMATION_QUALITY = {
 
 
 CONSTRAINT_CATALOG = {
+    "EC-META": {
+        "name": "Global Missing Core Metadata Severity",
+        "value": "severity classification for missing core Phase 3 decision metadata",
+        "implemented": True,
+    },
     "EC-01": {
         "name": "Non-Maleficence",
         "value": "avoidance of unnecessary or unjustified harm",
@@ -234,6 +241,82 @@ def validate_phase3_inputs(record: dict):
         )
 
 
+def validate_phase3_enums_and_optional_fields(record: dict):
+    def is_missing(value):
+        return value is None or (isinstance(value, str) and value.strip() == "")
+
+    if "posture" in record and not is_missing(record["posture"]) and record["posture"] not in VALID_POSTURES:
+        raise ValueError(f"Phase 3 invalid posture: {record['posture']}")
+
+    for field in ["uncertainty", "potential_harm", "irreversibility", "time_pressure"]:
+        if field in record and not is_missing(record[field]) and record[field] not in VALID_LEVELS:
+            raise ValueError(f"Phase 3 invalid {field}: {record[field]}")
+
+    if "context_tag" in record and not is_missing(record["context_tag"]) and record["context_tag"] not in VALID_CONTEXT_TAGS:
+        raise ValueError(f"Phase 3 invalid context_tag: {record['context_tag']}")
+
+    if "use_domain" in record and not is_missing(record["use_domain"]) and record["use_domain"] not in VALID_USE_DOMAINS:
+        raise ValueError(f"Phase 3 invalid use_domain: {record['use_domain']}")
+
+    # Optional atomic fields for EC-04 / EC-06 / EC-09 / EC-13.
+    if "affected_groups" in record and not is_missing(record["affected_groups"]) and record["affected_groups"] not in VALID_AFFECTED_GROUPS:
+        raise ValueError(f"Phase 3 invalid affected_groups: {record['affected_groups']}")
+
+    if (
+        "distribution_of_impact" in record
+        and not is_missing(record["distribution_of_impact"])
+        and record["distribution_of_impact"] not in VALID_DISTRIBUTION_OF_IMPACT
+    ):
+        raise ValueError(
+            f"Phase 3 invalid distribution_of_impact: {record['distribution_of_impact']}"
+        )
+
+    if (
+        "benefit_distribution" in record
+        and not is_missing(record["benefit_distribution"])
+        and record["benefit_distribution"] not in VALID_BENEFIT_DISTRIBUTION
+    ):
+        raise ValueError(
+            f"Phase 3 invalid benefit_distribution: {record['benefit_distribution']}"
+        )
+
+    if (
+        "population_vulnerability_flag" in record
+        and not is_missing(record["population_vulnerability_flag"])
+        and record["population_vulnerability_flag"] not in VALID_POPULATION_VULNERABILITY_FLAG
+    ):
+        raise ValueError(
+            "Phase 3 invalid population_vulnerability_flag: "
+            f"{record['population_vulnerability_flag']}"
+        )
+
+    if "consent_status" in record and not is_missing(record["consent_status"]) and record["consent_status"] not in VALID_CONSENT_STATUS:
+        raise ValueError(f"Phase 3 invalid consent_status: {record['consent_status']}")
+
+    if "consent_scope" in record and not is_missing(record["consent_scope"]) and record["consent_scope"] not in VALID_CONSENT_SCOPE:
+        raise ValueError(f"Phase 3 invalid consent_scope: {record['consent_scope']}")
+
+    if (
+        "participation_type" in record
+        and not is_missing(record["participation_type"])
+        and record["participation_type"] not in VALID_PARTICIPATION_TYPE
+    ):
+        raise ValueError(
+            f"Phase 3 invalid participation_type: {record['participation_type']}"
+        )
+
+    if (
+        "participation_information_quality" in record
+        and not is_missing(record["participation_information_quality"])
+        and record["participation_information_quality"]
+        not in VALID_PARTICIPATION_INFORMATION_QUALITY
+    ):
+        raise ValueError(
+            "Phase 3 invalid participation_information_quality: "
+            f"{record['participation_information_quality']}"
+        )
+
+
 # -----------------------------------
 # Implemented Constraints
 # -----------------------------------
@@ -269,6 +352,9 @@ def evaluate_ec_02(record: dict):
       irreversibility are MEDIUM or above.
     - PAUSE and ESCALATE are admissible boundary-respecting postures here.
     """
+    if "uncertainty" not in record:
+        return ("EC-02", "AMBIGUITY", "EC-02 cannot evaluate: uncertainty missing")
+
     posture = record["posture"]
     uncertainty = record["uncertainty"]
     irreversibility = record["irreversibility"]
@@ -345,6 +431,10 @@ def evaluate_ec_05(record: dict):
     """
     EC-05: Transparency of Decision Rationale
     """
+    for _nc_field in ("uncertainty", "time_pressure"):
+        if _nc_field not in record:
+            return ("EC-05", "AMBIGUITY", f"EC-05 cannot evaluate: {_nc_field} missing")
+
     rationale = record["rationale"].strip()
     rationale_upper = rationale.upper()
     posture = record["posture"]
@@ -393,6 +483,9 @@ def evaluate_ec_07(record: dict):
     - If uncertainty, potential_harm, and irreversibility are all MEDIUM or above under PROCEED,
       treat that as threshold exceedance.
     """
+    if "uncertainty" not in record:
+        return ("EC-07", "AMBIGUITY", "EC-07 cannot evaluate: uncertainty missing")
+
     posture = record["posture"]
     uncertainty = record["uncertainty"]
     potential_harm = record["potential_harm"]
@@ -435,6 +528,14 @@ def evaluate_ec_08(record: dict):
     - HIGH_IMPACT + PROCEED + irreversibility != LOW -> FAIL
     - EXTERNAL_SYSTEM + PROCEED + uncertainty == HIGH -> FAIL
     """
+    def _is_blank(v):
+        return v is None or (isinstance(v, str) and v.strip() == "")
+
+    if "context_tag" not in record or _is_blank(record.get("context_tag")):
+        return ("EC-08", "AMBIGUITY", "EC-08 cannot evaluate: context_tag missing")
+    if "uncertainty" not in record or _is_blank(record.get("uncertainty")):
+        return ("EC-08", "AMBIGUITY", "EC-08 cannot evaluate: uncertainty missing")
+
     posture = record["posture"]
     context_tag = record["context_tag"].strip().upper()
     potential_harm = record["potential_harm"]
@@ -526,6 +627,13 @@ def evaluate_ec_11(record: dict):
       treat that as integrity-sensitive failure.
     - This is a narrow v1 enforcement, not full anti-tamper coverage.
     """
+    def _is_blank(v):
+        return v is None or (isinstance(v, str) and v.strip() == "")
+
+    for _nc_field in ("uncertainty", "time_pressure"):
+        if _nc_field not in record or _is_blank(record.get(_nc_field)):
+            return ("EC-11", "AMBIGUITY", f"EC-11 cannot evaluate: {_nc_field} missing")
+
     posture = record["posture"]
     uncertainty = record["uncertainty"]
     potential_harm = record["potential_harm"]
@@ -564,6 +672,9 @@ def evaluate_ec_12(record: dict):
     """
     EC-12: Fail-Safe Default Under Ethical Uncertainty
     """
+    if "uncertainty" not in record:
+        return ("EC-12", "AMBIGUITY", "EC-12 cannot evaluate: uncertainty missing")
+
     posture = record["posture"]
     uncertainty = record["uncertainty"]
     irrev = record["irreversibility"]
@@ -604,12 +715,31 @@ def evaluate_ec_04(record: dict):
         "benefit_distribution",
         "population_vulnerability_flag",
     ]
-    missing = [k for k in required_keys if k not in record]
+
+    def _is_blank(v):
+        return v is None or (isinstance(v, str) and v.strip() == "")
+
+    missing = [k for k in required_keys if k not in record or _is_blank(record.get(k))]
     if missing:
+        action_text = normalize_text(record.get("proposed_action") or "")
+        _ec04_targeting = re.search(
+            r"\b(group|demographic|region|segment|select(?:ed)?|specific|certain|cohort|designated|classified)\b",
+            action_text,
+        )
+        _ec04_differential = re.search(
+            r"\b(differentiated|differential|varying|varied|based\s+on|adjusted\s+(?:for|by))\b",
+            action_text,
+        )
+        if _ec04_targeting and _ec04_differential:
+            return (
+                "EC-04",
+                "AMBIGUITY",
+                "Fairness metadata missing but proposed action contains targeting + differential treatment signals (missing_metadata)",
+            )
         return (
             "EC-04",
-            "PASS",
-            "Not applicable \u2014 required fairness-related fields not present",
+            "AMBIGUITY",
+            "Not applicable / insufficient signal \u2014 required fairness-related fields not present",
         )
 
     affected_groups = record["affected_groups"]
@@ -648,12 +778,31 @@ def evaluate_ec_06(record: dict):
         "population_vulnerability_flag",
         "potential_harm",
     ]
-    missing = [k for k in required_keys if k not in record]
+
+    def _is_blank(v):
+        return v is None or (isinstance(v, str) and v.strip() == "")
+
+    missing = [k for k in required_keys if k not in record or _is_blank(record.get(k))]
     if missing:
+        action_text = normalize_text(record.get("proposed_action") or "")
+        _ec06_population = re.search(
+            r"\b(users?|all\s+users?|all\s+accounts?|platform[\s-]?wide|everyone|every\s+(?:user|account))\b",
+            action_text,
+        )
+        _ec06_impact = re.search(
+            r"\b(default|mandatory|no\s+alternative|forced|required|compulsory)\b",
+            action_text,
+        )
+        if _ec06_population and _ec06_impact:
+            return (
+                "EC-06",
+                "AMBIGUITY",
+                "Vulnerability metadata missing but proposed action contains population-scale + mandatory/default impact signals (missing_metadata)",
+            )
         return (
             "EC-06",
-            "PASS",
-            "Not applicable \u2014 required vulnerability-related fields not present",
+            "AMBIGUITY",
+            "Not applicable / insufficient signal \u2014 required vulnerability-related fields not present",
         )
 
     vulnerability = record["population_vulnerability_flag"]
@@ -693,12 +842,31 @@ def evaluate_ec_09(record: dict):
         "consent_scope",
         "participation_type",
     ]
-    missing = [k for k in required_keys if k not in record]
+
+    def _is_blank(v):
+        return v is None or (isinstance(v, str) and v.strip() == "")
+
+    missing = [k for k in required_keys if k not in record or _is_blank(record.get(k))]
     if missing:
+        action_text = normalize_text(record.get("proposed_action") or "")
+        _ec09_consent = re.search(
+            r"\b(opt[\s-]?in|opt[\s-]?out|data\s+sharing|sharing\s+feature|sharing\s+program|preference|consent)\b",
+            action_text,
+        )
+        _ec09_scope = re.search(
+            r"\b(all\s+(?:users?|accounts?|platform)|platform[\s-]?wide|everyone|every\s+(?:user|account)|default)\b",
+            action_text,
+        )
+        if _ec09_consent and _ec09_scope:
+            return (
+                "EC-09",
+                "AMBIGUITY",
+                "Consent metadata missing but proposed action contains consent-related + broad-scope signals (missing_metadata)",
+            )
         return (
             "EC-09",
-            "PASS",
-            "Not applicable \u2014 required consent-related fields not present",
+            "AMBIGUITY",
+            "Not applicable / insufficient signal \u2014 required consent-related fields not present",
         )
 
     consent_status = record["consent_status"]
@@ -761,19 +929,15 @@ def evaluate_ec_13(record: dict):
     EC-13: Text-Encoded Harmful Intent / Impact
 
     Deterministic lexical detector over proposed_action text.
-    Applies ONLY when posture == PROCEED (autonomous release surface).
+    Runs on ALL postures (Tier A always-on ethical content inspection).
 
     Returns:
     - FAIL for strong patterns indicating targeted suppression/manipulation/covert harm
     - AMBIGUITY for weaker but non-trivial suspicion patterns
     - PASS otherwise
     """
-    posture = record["posture"]
-    if posture != "PROCEED":
-        return ("EC-13", "PASS", "EC-13 not applicable to non-PROCEED posture")
-
     action = (record.get("proposed_action") or "").strip()
-    a = action.casefold()
+    a = normalize_text(action)
 
     def has(rx: str) -> bool:
         return re.search(rx, a) is not None
@@ -785,7 +949,7 @@ def evaluate_ec_13(record: dict):
     triggered_ambig: list[str] = []
 
     # Category 1: targeted disadvantage / selected subgroup friction
-    subgroup_rx = r"\b(selected|specific|certain|named|target(?:ed)?|subgroup|group|zip\s*codes?|neighborhood|viewpoints?)\b"
+    subgroup_rx = r"\b(select(?:ed)?|specific|certain|named|target(?:ed)?|subgroup|group|zip\s*codes?|neighborhood|viewpoints?|designated|categorized|classified|demographic|region|segment|cohort)\b"
     disadvantage_rx = r"\b(disadvantage|penali[sz]e|increase\s+costs?|raise\s+prices?|delay(?:s)?|introduce\s+(?:small\s+)?delays?|friction|restrict(?:ion)?|lock\s*out|remove\s+appeal)\b"
     if both(subgroup_rx, disadvantage_rx):
         triggered_fail.append("targeted_disadvantage")
@@ -793,20 +957,23 @@ def evaluate_ec_13(record: dict):
         triggered_ambig.append("targeted_disadvantage")
 
     # Category 2: covert suppression / reduced visibility / shadow restriction
+    _suppress_verb = r"lower|reduce|deprioriti[sz]e|demote|downrank|throttle|dampen|deweight|filter"
     suppression_strong = [
         r"\bshadow\s*ban\b",
-        r"\blower\s+visibility\b",
-        r"\breduce(?:d)?\s+visibility\b",
+        r"\b(?:" + _suppress_verb + r")\s+visibility\b",
+        r"\b(?:" + _suppress_verb + r")\s+the\s+visibility\b",
         r"\bsuppress(?:ion|ed|ing)?\b",
         r"\bdeprioriti[sz]e\b",
-        r"\blower\s+the\s+visibility\b",
         r"\bauto-?delete\s+posts?\b",
         r"\bdelete\s+posts?\s+matching\b",
-        r"\blower\s+visibility\b.*\branking\b",
+        r"\b(?:" + _suppress_verb + r")\s+visibility\b.*\branking\b",
     ]
+    _suppress_verb_list = ["lower", "reduce", "deprioritize", "demote", "downrank", "throttle", "dampen", "deweight", "filter"]
     if any(has(rx) for rx in suppression_strong):
         triggered_fail.append("covert_suppression")
-    elif has(r"\bvisibility\b") and has(r"\b(lower|reduce|deprioriti[sz]e)\b"):
+    elif any(phrase_window_match(a, v, "visibility", max_gap=3) for v in _suppress_verb_list):
+        triggered_fail.append("covert_suppression")
+    elif has(r"\bvisibility\b") and has(r"\b(" + _suppress_verb + r")\b"):
         triggered_ambig.append("covert_suppression")
 
     # Category 3: coercive / manipulative defaults (consent erosion)
@@ -824,7 +991,7 @@ def evaluate_ec_13(record: dict):
     else:
         weak_restrict_rx = r"\btemporar(?:y|ily)\s+restrict\b|\brestrict\s+access\b"
         qualifier_rx = (
-            r"\b(selected|specific|certain|named|target(?:ed)?|subgroup|group)\b"
+            r"\b(select(?:ed)?|specific|certain|named|target(?:ed)?|subgroup|group|designated|categorized|classified|demographic|region|segment|cohort)\b"
             r"|\bremove\s+appeal\b|\bno\s+alternative\b|\bsilently\s+change\b"
             r"|\bgate\s+essential\s+service\b"
         )
@@ -842,11 +1009,15 @@ def evaluate_ec_13(record: dict):
         triggered_ambig.append("hidden_destructive_change")
 
     # Category 6: behavioral manipulation / feedback shaping / bias reinforcement
-    manipulation_rx = r"\b(feedback\s+loop|shape\s+behavior|behavioral\s+manipulation|recommendation\s+system|ranking\s+algorithm)\b"
+    manipulation_rx = r"\b(feedback\s+loop|shape\s+behavior|behavioral\s+manipulation|recommendation\s+system|recommendation\s+engine|content\s+ranking|feed\s+algorithm|ranking\s+algorithm|ranking\s+model|content\s+feed)\b"
     bias_rx = r"\b(reinforce\s+existing\s+bias(?:es)?|reinforce\s+bias(?:es)?|bias(?:es)?)\b"
-    if both(manipulation_rx, bias_rx):
+    _system_terms = ["recommendation", "ranking", "content", "feed"]
+    manipulation_proximity = any(
+        phrase_window_match(a, st, "bias", max_gap=5) for st in _system_terms
+    )
+    if both(manipulation_rx, bias_rx) or (manipulation_proximity and has(bias_rx)):
         triggered_fail.append("behavioral_manipulation")
-    elif has(manipulation_rx):
+    elif has(manipulation_rx) or manipulation_proximity:
         triggered_ambig.append("behavioral_manipulation")
 
     # Category 7: covert exploitative engagement / manipulative user influence
@@ -888,6 +1059,43 @@ def evaluate_ec_13(record: dict):
     if has(steering_rx) and has(retention_influence_rx):
         triggered_fail.append("disguised_behavioral_steering")
 
+    # ---- Euphemism / skirted-harm co-occurrence layer (AMBIGUITY only) ----
+    _adjustment_rx = r"\b(adjust|update|modify|tune|configure|set|apply)\b"
+    _content_sys_rx = r"\b(content|feed|ranking|recommendation|notification|parameter|weight|display|algorithm)\b"
+    _noise_quality_rx = r"\b(noise|quality\s+improvement|quality\s+optimization|quality\s+metric)\b"
+    _engage_retain_rx = r"\b(engagement|retention|re-?engagement)\b"
+    _pattern_optim_rx = r"\b(patterns?|optimization|metrics?|loops?|intervals?)\b"
+    _data_sharing_rx = r"\b(data\s+sharing|sharing\s+feature|sharing\s+integration|sharing\s+program)\b"
+    _broad_scope_rx = r"\b(all\s+(?:users?|accounts?|platform)|platform[\s-]?wide|everyone|every\s+(?:user|account))\b"
+    _differentiated_rx = r"\b(differentiated|differential|varied|differing|tiered)\b"
+    _processing_svc_rx = r"\b(processing|request|service|handling|access|delivery|routing)\b"
+    _geo_demo_rx = r"\b(geographic|region|zone|endpoint|area|demographic|location)\b"
+    _gating_step_rx = r"\b(validation\s+step|additional\s+step|verification\s+step|approval\s+step|extra\s+step)\b"
+
+    if "covert_suppression" not in triggered_fail and "covert_suppression" not in triggered_ambig:
+        if has(_noise_quality_rx) and has(subgroup_rx) and has(_adjustment_rx):
+            triggered_ambig.append("SUPPRESSIVE_PATTERN_WEAK")
+
+    if "behavioral_manipulation" not in triggered_fail \
+       and "behavioral_manipulation" not in triggered_ambig \
+       and "disguised_behavioral_steering" not in triggered_fail:
+        if has(_engage_retain_rx) and has(_pattern_optim_rx):
+            triggered_ambig.append("BEHAVIORAL_INFLUENCE_UNQUALIFIED")
+
+    if "coercive_defaults" not in triggered_fail and "coercive_defaults" not in triggered_ambig:
+        if has(_data_sharing_rx) and has(_broad_scope_rx):
+            triggered_ambig.append("CONSENT_UNCERTAIN")
+
+    if "targeted_disadvantage" not in triggered_fail and "targeted_disadvantage" not in triggered_ambig:
+        if has(_differentiated_rx) and has(_processing_svc_rx) and has(_geo_demo_rx):
+            triggered_ambig.append("SCOPE_UNCLEAR")
+
+    if not triggered_fail and not triggered_ambig:
+        if has(_gating_step_rx) and has(subgroup_rx):
+            triggered_ambig.append("EUPHEMISM_SUSPECTED")
+        elif has(_adjustment_rx) and has(_content_sys_rx) and has(subgroup_rx):
+            triggered_ambig.append("EUPHEMISM_SUSPECTED")
+
     # Benign guardrail: debugging/anonymized/log access should not be flagged by EC-13 alone
     benign_debug_rx = r"\b(anonymi[sz]ed|debug(?:ging)?|healthcheck|policy\s+update|reminder\s+email)\b"
     if has(benign_debug_rx) and not triggered_fail and not triggered_ambig:
@@ -919,6 +1127,47 @@ CONSTRAINT_EVALUATORS = {
     "EC-12": evaluate_ec_12,
     "EC-13": evaluate_ec_13,
 }
+
+
+def classify_global_missing_metadata(record: dict):
+    core_fields = [
+        "uncertainty",
+        "potential_harm",
+        "irreversibility",
+        "time_pressure",
+        "posture",
+        "rationale",
+        "context_tag",
+        "use_domain",
+    ]
+    critical_fields = {
+        "potential_harm",
+        "irreversibility",
+        "posture",
+        "rationale",
+        "use_domain",
+    }
+    non_critical_fields = {
+        "uncertainty",
+        "time_pressure",
+        "context_tag",
+    }
+
+    def is_missing(value):
+        return value is None or (isinstance(value, str) and value.strip() == "")
+
+    missing_fields = [field for field in core_fields if field not in record or is_missing(record.get(field))]
+    if not missing_fields:
+        return None
+
+    missing_critical = [field for field in missing_fields if field in critical_fields]
+    if missing_critical:
+        missing_list = ", ".join(missing_critical)
+        return ("EC-META", "FAIL", f"Critical core metadata missing: {missing_list}")
+
+    missing_non_critical = [field for field in missing_fields if field in non_critical_fields]
+    missing_list = ", ".join(missing_non_critical)
+    return ("EC-META", "AMBIGUITY", f"Non-critical core metadata missing: {missing_list}")
 
 
 def combine_phase3_results(results: list[tuple[str, str, str]]):
@@ -959,9 +1208,17 @@ def combine_phase3_results(results: list[tuple[str, str, str]]):
 
 
 def evaluate_phase3(record: dict):
-    validate_phase3_inputs(record)
-
     results = []
+    metadata_result = classify_global_missing_metadata(record)
+    if metadata_result is None:
+        validate_phase3_enums_and_optional_fields(record)
+    elif metadata_result[1] == "AMBIGUITY":
+        results.append(metadata_result)
+        validate_phase3_enums_and_optional_fields(record)
+    elif metadata_result[1] == "FAIL":
+        results.append(metadata_result)
+        validate_phase3_enums_and_optional_fields(record)
+        return combine_phase3_results(results)
 
     for constraint_id in sorted(CONSTRAINT_EVALUATORS.keys()):
         evaluator = CONSTRAINT_EVALUATORS[constraint_id]

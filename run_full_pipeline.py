@@ -52,6 +52,21 @@ CANONICAL_FIELDS = [
     "use_domain",
 ]
 
+# Optional Phase 3-only fields that may be carried from the CSV row onto the
+# Phase 3 input record when present and non-blank. These are NOT part of the
+# canonical Phase 2-validated view and are intentionally excluded from the
+# provenance fingerprint. Phase 1 and Phase 2 never observe them.
+OPTIONAL_PHASE3_FIELDS = [
+    "affected_groups",
+    "distribution_of_impact",
+    "benefit_distribution",
+    "population_vulnerability_flag",
+    "consent_status",
+    "consent_scope",
+    "participation_type",
+    "participation_information_quality",
+]
+
 
 def canonical_phase2_validated_view(record: Dict[str, Any]) -> Dict[str, Any]:
     return {field: record.get(field, "") for field in CANONICAL_FIELDS}
@@ -420,6 +435,11 @@ def main() -> None:
             # Phase 3
             # -------------------------
             phase3_input_record = apply_phase3_tamper_mode(phase1_record, tamper_mode)
+
+            for _opt_field in OPTIONAL_PHASE3_FIELDS:
+                _opt_value = row.get(_opt_field, "")
+                if isinstance(_opt_value, str) and _opt_value.strip() != "":
+                    phase3_input_record[_opt_field] = _opt_value.strip()
 
             phase2_validated_fingerprint = fingerprint_record_view(
                 canonical_phase2_validated_view(phase1_record)

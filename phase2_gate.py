@@ -55,6 +55,138 @@ def _has_objective_rationale_duplication(rationale: str) -> bool:
     return len(norm) != len(set(norm))
 
 
+_ACTION_MARKERS = [
+    "payroll", "account", "access", "login", "session", "privileges",
+    "contractor", "employee", "badge", "vpn", "token", "credentials",
+    "offboarding", "termination",
+]
+
+_CAUSAL_PHRASES = [
+    "because", "to prevent", "to reduce", "in order to", "so that",
+    "due to", "pending", "while",
+]
+
+_SCOPE_REVERSIBILITY_CUES = [
+    "only", "temporary", "temporarily", "limited", "specific session",
+    "session only", "not the full account", "reversible", "restore",
+    "restored", "restorable", "pending verification",
+]
+
+_MITIGATION_CUES = [
+    "verify", "verification", "monitor", "monitoring", "rollback",
+    "safeguard", "preserve logs", "review", "investigation",
+    "containment", "compensating control",
+]
+
+_SENSITIVE_PROCEED_DOMAINS = {"ACCESS_CONTROL", "COMMUNICATION_MODERATION", "FINANCIAL"}
+
+
+def _extract_action_markers(proposed_action: str) -> list[str]:
+    lower = proposed_action.lower()
+    found = []
+    for marker in _ACTION_MARKERS:
+        pattern = r"\b" + re.escape(marker) + r"\b"
+        if re.search(pattern, lower):
+            found.append(marker)
+    return found
+
+
+def _rationale_mentions_action_target(rationale: str, markers: list[str]) -> bool:
+    lower = rationale.lower()
+    hit_count = 0
+
+    for marker in markers:
+        pattern = r"\b" + re.escape(marker) + r"\b"
+        if re.search(pattern, lower):
+            hit_count += 1
+
+    if len(markers) <= 1:
+        return hit_count >= 1
+
+    return hit_count >= 2
+
+
+def _has_causal_language(rationale: str) -> bool:
+    lower = rationale.lower()
+
+    phrase_hits = any(phrase in lower for phrase in _CAUSAL_PHRASES)
+
+    intent_patterns = [
+        r"\bto\s+(prevent|reduce|limit|restrict|avoid|mitigate|control)\b",
+        r"\bfor\s+(containment|safety|security|verification|review|investigation)\b",
+        r"\bneeded\s+to\b",
+        r"\brequired\s+to\b",
+        r"\bused\s+to\b",
+    ]
+
+    pattern_hits = any(re.search(pattern, lower) for pattern in intent_patterns)
+
+    return phrase_hits or pattern_hits
+
+
+def _has_scope_or_reversibility_cue(rationale: str) -> bool:
+    lower = rationale.lower()
+    return any(cue in lower for cue in _SCOPE_REVERSIBILITY_CUES)
+
+
+def _has_mitigation_cue(rationale: str) -> bool:
+    lower = rationale.lower()
+    return any(cue in lower for cue in _MITIGATION_CUES)
+
+
+def _is_metadata_echo_only(rationale: str, markers: list[str]) -> bool:
+    upper = rationale.upper()
+
+    required_pair_prefixes = [
+        "UNCERTAINTY=",
+        "POTENTIAL_HARM=",
+        "IRREVERSIBILITY=",
+        "TIME_PRESSURE=",
+        "USE_DOMAIN=",
+    ]
+
+    has_required_field_pairs = all(prefix in upper for prefix in required_pair_prefixes)
+
+    if not has_required_field_pairs:
+        return False
+
+    if _rationale_mentions_action_target(rationale, markers):
+        return False
+
+    if _has_causal_language(rationale):
+        return False
+
+    return True
+
+
+_GENERIC_JUSTIFICATION_PHRASES = [
+    "this action is necessary",
+    "appropriate action",
+    "ensure safety",
+    "reduce risk",
+    "limited in scope",
+    "monitoring in place",
+    "mitigation in place",
+    "monitoring will continue",
+    "review will occur",
+    "verification is pending",
+    "logs are preserved",
+    "pending verification",
+    "temporary measure",
+    "control is in place",
+]
+
+
+def _is_overly_generic_justification(rationale: str, markers: list[str]) -> bool:
+    lower = rationale.lower()
+
+    generic_hits = sum(1 for phrase in _GENERIC_JUSTIFICATION_PHRASES if phrase in lower)
+    marker_hits = sum(1 for marker in markers if re.search(r"\b" + re.escape(marker) + r"\b", lower))
+    has_causal = _has_causal_language(rationale)
+
+    return generic_hits >= 2 and has_causal and marker_hits <= 1
+
+
 def load_record(path):
     with open(path, "r", encoding="utf-8") as f:
         return json.load(f)
@@ -140,6 +272,45 @@ def validate_record(record: dict):
             "REJECT_NEW_POSTURE_REQUIRED",
             "PROCEED rationale describes risk without mitigation vocabulary",
         )
+
+    markers = _extract_action_markers(record["proposed_action"])
+
+    if markers and not _rationale_mentions_action_target(rationale, markers):
+        return (
+            "REJECT_NEW_POSTURE_REQUIRED",
+            "Rationale is not coherently tied to proposed action",
+        )
+
+    if not _has_causal_language(rationale):
+        return (
+            "REJECT_NEW_POSTURE_REQUIRED",
+            "Rationale lacks causal explanation for proposed action",
+        )
+
+    if _is_metadata_echo_only(rationale, markers):
+        return (
+            "REJECT_NEW_POSTURE_REQUIRED",
+            "Rationale appears to restate metadata without action-specific justification",
+        )
+
+    if _is_overly_generic_justification(rationale, markers):
+        return (
+            "REJECT_NEW_POSTURE_REQUIRED",
+            "Rationale is generic and lacks action-specific justification detail",
+        )
+
+    if record["posture"] == "PROCEED":
+        if record.get("use_domain") in _SENSITIVE_PROCEED_DOMAINS:
+            if not (_has_scope_or_reversibility_cue(rationale) and _has_mitigation_cue(rationale)):
+                return (
+                    "REJECT_NEW_POSTURE_REQUIRED",
+                    "Sensitive-domain PROCEED rationale lacks sufficient scope control and mitigation detail",
+                )
+        elif not (_has_scope_or_reversibility_cue(rationale) or _has_mitigation_cue(rationale)):
+            return (
+                "REJECT_NEW_POSTURE_REQUIRED",
+                "PROCEED rationale lacks bounded-scope or mitigation explanation",
+            )
 
     if _count_medium_dimensions(record) >= 2 and record["posture"] == "PROCEED":
         return (

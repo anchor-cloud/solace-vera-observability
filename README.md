@@ -120,6 +120,16 @@ Observed behavior:
 
 This allows failures to be traced to their origin rather than only observed at output.
 
+## Testing layers
+
+The repository has two distinct testing layers. They use different runners, different input contracts, and verify different things. See [`scenarios/README.md`](scenarios/README.md) for the full explanation and per-pack classification.
+
+- **Full-pipeline canonical testing** — runner: `run_full_pipeline.py`. Routes a pack through Phase 1 → Phase 2 → Phase 3 → final execution gate → Phase 4. Each row is projected into the canonical 10-field record (`scenario_id`, `proposed_action`, `uncertainty`, `potential_harm`, `irreversibility`, `time_pressure`, `posture`, `rationale`, `context_tag`, `use_domain`). Verifies posture selection, Phase 2 gating, final disposition, and cross-run Phase 4 signals. Does not carry atomic/consent fields or honor `drop_fields`.
+
+- **Phase 3 semantic testing** — runner: `run_phase3_pack.py`. Invokes `phase3_gate.evaluate_phase3()` directly on each row. Preserves atomic/consent fields (`affected_groups`, `distribution_of_impact`, `benefit_distribution`, `population_vulnerability_flag`, `consent_status`, `consent_scope`, `participation_type`, `participation_information_quality`), honors the `drop_fields` column, and does not rewrite `posture` / `rationale` / `context_tag`. Verifies per-constraint semantics including `EC-META` classification of missing core metadata and the `KeyError` guards on EC-02 / EC-05 / EC-07 / EC-08 / EC-11 / EC-12. Does not exercise Phase 1, Phase 2, the final execution gate, or Phase 4.
+
+Pack-to-layer mapping is listed in `scenarios/README.md`. Packs that depend on atomic/consent fields or `drop_fields` (currently `phase3_ambiguity_and_hardening_v1.csv`) are Phase 3-only and are not valid inputs for `run_full_pipeline.py` under the current canonical projection.
+
 ## Current status and limitations
 
 - Rule-based and deterministic by design.

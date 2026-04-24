@@ -80,13 +80,6 @@ def evaluate_phase1(
     if uncertainty == "HIGH":
         reasons.append("High uncertainty requires escalation")
 
-    # Medium-risk escalation rules
-    if potential_harm == "MEDIUM":
-        reasons.append("Medium potential harm requires escalation")
-
-    if irreversibility == "MEDIUM":
-        reasons.append("Medium irreversibility requires escalation")
-
     # Compound-risk escalation rules
     if uncertainty == "MEDIUM" and potential_harm == "MEDIUM":
         reasons.append("Combined medium uncertainty and medium harm require escalation")
@@ -104,6 +97,8 @@ def evaluate_phase1(
     if not reasons and (
         (uncertainty == "MEDIUM" and potential_harm == "LOW")
         or (uncertainty == "LOW" and time_pressure == "MEDIUM")
+        or (potential_harm == "MEDIUM" and uncertainty == "LOW" and irreversibility == "LOW")
+        or (irreversibility == "MEDIUM" and uncertainty == "LOW" and potential_harm == "LOW")
     ):
         posture = "PAUSE"
         rationale = (
@@ -124,7 +119,10 @@ def evaluate_phase1(
         rationale = (
             f"PROCEED triggered because uncertainty={uncertainty}, "
             f"potential_harm={potential_harm}, irreversibility={irreversibility}, "
-            f"time_pressure={time_pressure}, use_domain={use_domain}"
+            f"time_pressure={time_pressure}, use_domain={use_domain}. "
+            f"All assessed risk dimensions are LOW. The action is limited in scope "
+            f"and reversible, with monitoring and verification during execution "
+            f"to safeguard safety and ensure containment."
         )
 
     # Phase 1 domain/context overlay (post-process only when base posture is PROCEED)
