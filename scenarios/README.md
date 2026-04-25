@@ -1,3 +1,7 @@
+# Solace / Vera Decision Observability Pipeline
+
+**A deterministic pre-execution safety gate for LLM agents and automation — blocks harmful actions before they happen.**
+
 # Scenario packs
 
 This directory holds CSV scenario packs used to exercise the decision observability pipeline. Packs fall into one of two testing layers. The layer determines which runner a pack is valid for and what it can meaningfully verify.
