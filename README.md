@@ -1,5 +1,7 @@
 # Solace / Vera Decision Observability Pipeline
 
+**This is not a model. It's a pre-action auditing pipeline. It works. Run it in 30 seconds.**
+
 ## What this system is
 
 This repository implements a deterministic 4-phase decision observability pipeline for auditing how decisions are formed, validated, and constrained before execution. 
