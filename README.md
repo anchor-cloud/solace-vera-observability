@@ -2,11 +2,13 @@
 
 **This is not a model. It's a pre-action auditing pipeline. It works. Run it in 30 seconds.**
 
+**Mentioned in:** [DailyAIWire - Pre-Action Auditing Pipeline Forces AI Justification Before Execution](https://dailyaiwire.news/article/ai-pre-action-auditing-pipeline-justification)
+
 ## What this system is
 
-This repository implements a deterministic 4-phase decision observability pipeline for auditing how decisions are formed, validated, and constrained before execution. 
+This repository implements a deterministic 4-phase decision observability pipeline for auditing how decisions are formed, validated, and constrained before execution.
 
-It runs scenario rows from a CSV through rule-based phases and writes per-phase artifacts for inspection and evaluation. 
+It runs scenario rows from a CSV through rule-based phases and writes per-phase artifacts for inspection and evaluation.
 
 This system functions as a **pre-action auditing layer**, exposing how decisions are formed, validated, and constrained before execution.
 
@@ -25,12 +27,14 @@ The system exposes:
 - where unsafe decisions originate
 - whether they are caught downstream
 - and how behavior changes across repeated runs
-  
+
 ## Important scope note
+
 - This is **not** a model.
 - This project does **not** claim to solve alignment.
 
 ## Phases (high level)
+
 - **Phase 1** (`phase1_rebuild.py`): posture + rationale (`PROCEED` / `PAUSE` / `ESCALATE`)
 - **Phase 2** (`phase2_gate.py`): validates Phase 1 record integrity and enforces structural gating rules
 - **Phase 3** (`phase3_gate.py`): constraint evaluation (`ETHICAL_PASS` / `ETHICAL_FAIL_CONSTRAINT_VIOLATION` / `ETHICAL_AMBIGUITY_HUMAN_REVIEW_REQUIRED`)
@@ -53,87 +57,109 @@ Scenario inputs:
 - **Python 3.11+** (required for `datetime.UTC`)
 - No external dependencies (stdlib only)
 - Run from a terminal/command prompt in the repo root directory
-  
+
 ## Quick Start
 
 Run from the **repo root** (the directory containing `run_full_pipeline.py`).
 
 ```bash
 python run_full_pipeline.py scenarios/phase3_tests_v2.csv
-```
-
-## Expected Output
-
+Expected Output
 Each pipeline run creates a new timestamped folder:
 
-- `pipeline_outputs/full_pipeline_<timestamp>/`
-  - `phase1_records/<scenario_id>.json`
-  - `phase2_results/<scenario_id>_phase2.json`
-  - `phase3_results/<scenario_id>_phase3.json`
-  - `summary.txt`
+pipeline_outputs/full_pipeline_<timestamp>/
+
+phase1_records/<scenario_id>.json
+
+phase2_results/<scenario_id>_phase2.json
+
+phase3_results/<scenario_id>_phase3.json
+
+summary.txt
 
 Phase 4 files are also written/refreshed:
 
-- `phase4_history/phase4_history.jsonl` (append-only across runs)
-- `phase4_outputs/phase4_summary_<timestamp>.json`
-- `phase4_outputs/phase4_summary_<timestamp>.txt`
+phase4_history/phase4_history.jsonl (append-only across runs)
 
-## How to interpret results
+phase4_outputs/phase4_summary_<timestamp>.json
 
+phase4_outputs/phase4_summary_<timestamp>.txt
+
+How to interpret results
 This system is designed to expose how decisions behave under layered constraints.
 
 When reviewing outputs, focus on:
 
-- **Posture selection (Phase 1)**  
-  Does the system choose `PROCEED` in cases where uncertainty, harm, or irreversibility suggest escalation?
+Posture selection (Phase 1)
+Does the system choose PROCEED in cases where uncertainty, harm, or irreversibility suggest escalation?
 
-- **Validation behavior (Phase 2)**  
-  Are structurally invalid or inconsistent decisions rejected?
+Validation behavior (Phase 2)
+Are structurally invalid or inconsistent decisions rejected?
 
-- **Constraint enforcement (Phase 3)**  
-  Are unsafe or ethically invalid scenarios correctly classified as violations?
+Constraint enforcement (Phase 3)
+Are unsafe or ethically invalid scenarios correctly classified as violations?
 
-- **Cross-run behavior (Phase 4)**  
-  Do repeated runs show consistent patterns, drift, or concentration of failures?
+Cross-run behavior (Phase 4)
+Do repeated runs show consistent patterns, drift, or concentration of failures?
 
 The goal is not to match expected labels, but to observe whether unsafe decisions are consistently blocked or surfaced across phases. Unlike output-only evaluation, this pipeline exposes intermediate decision structure (posture, validation, constraint interaction), allowing failures to be traced to their origin rather than only observed at the final outcome.
 
-## Common Failure Signals
+Common Failure Signals
+FileNotFoundError (scenario path / wrong working directory)
+Make sure you run from the repo root and the CSV path exists. Example known-good command:
+python run_full_pipeline.py scenarios/phase3_tests_v2.csv
 
-- **FileNotFoundError (scenario path / wrong working directory)**  
-  Make sure you run from the repo root and the CSV path exists. Example known-good command:
-  `python run_full_pipeline.py scenarios/phase3_tests_v2.csv`
+Python not found / wrong Python version
+Ensure python points to Python 3.11+. If needed, try py -3.11 (Windows launcher) or check python --version.
 
-- **Python not found / wrong Python version**  
-  Ensure `python` points to Python **3.11+**. If needed, try `py -3.11` (Windows launcher) or check `python --version`.
-
-## Example (simplified)
-
+Example (simplified)
 Input scenario:
-- High uncertainty
-- Potential harm present
-- Irreversible action
+
+High uncertainty
+
+Potential harm present
+
+Irreversible action
 
 Observed behavior:
-- Phase 1: ESCALATE
-- Phase 2: VALID (structure accepted)
-- Phase 3: ETHICAL_FAIL_CONSTRAINT_VIOLATION
-- Phase 4: Logged for drift analysis
+
+Phase 1: ESCALATE
+
+Phase 2: VALID (structure accepted)
+
+Phase 3: ETHICAL_FAIL_CONSTRAINT_VIOLATION
+
+Phase 4: Logged for drift analysis
 
 This allows failures to be traced to their origin rather than only observed at output.
 
-## Testing layers
+Testing layers
+The repository has two distinct testing layers. They use different runners, different input contracts, and verify different things. See scenarios/README.md for the full explanation and per-pack classification.
 
-The repository has two distinct testing layers. They use different runners, different input contracts, and verify different things. See [`scenarios/README.md`](scenarios/README.md) for the full explanation and per-pack classification.
+Full-pipeline canonical testing — runner: run_full_pipeline.py. Routes a pack through Phase 1 → Phase 2 → Phase 3 → final execution gate → Phase 4. Each row is projected into the canonical 10-field record (scenario_id, proposed_action, uncertainty, potential_harm, irreversibility, time_pressure, posture, rationale, context_tag, use_domain). Verifies posture selection, Phase 2 gating, final disposition, and cross-run Phase 4 signals. Does not carry atomic/consent fields or honor drop_fields.
 
-- **Full-pipeline canonical testing** — runner: `run_full_pipeline.py`. Routes a pack through Phase 1 → Phase 2 → Phase 3 → final execution gate → Phase 4. Each row is projected into the canonical 10-field record (`scenario_id`, `proposed_action`, `uncertainty`, `potential_harm`, `irreversibility`, `time_pressure`, `posture`, `rationale`, `context_tag`, `use_domain`). Verifies posture selection, Phase 2 gating, final disposition, and cross-run Phase 4 signals. Does not carry atomic/consent fields or honor `drop_fields`.
+Phase 3 semantic testing — runner: run_phase3_pack.py. Invokes phase3_gate.evaluate_phase3() directly on each row. Preserves atomic/consent fields (affected_groups, distribution_of_impact, benefit_distribution, population_vulnerability_flag, consent_status, consent_scope, participation_type, participation_information_quality), honors the drop_fields column, and does not rewrite posture / rationale / context_tag. Verifies per-constraint semantics including EC-META classification of missing core metadata and the KeyError guards on EC-02 / EC-05 / EC-07 / EC-08 / EC-11 / EC-12. Does not exercise Phase 1, Phase 2, the final execution gate, or Phase 4.
 
-- **Phase 3 semantic testing** — runner: `run_phase3_pack.py`. Invokes `phase3_gate.evaluate_phase3()` directly on each row. Preserves atomic/consent fields (`affected_groups`, `distribution_of_impact`, `benefit_distribution`, `population_vulnerability_flag`, `consent_status`, `consent_scope`, `participation_type`, `participation_information_quality`), honors the `drop_fields` column, and does not rewrite `posture` / `rationale` / `context_tag`. Verifies per-constraint semantics including `EC-META` classification of missing core metadata and the `KeyError` guards on EC-02 / EC-05 / EC-07 / EC-08 / EC-11 / EC-12. Does not exercise Phase 1, Phase 2, the final execution gate, or Phase 4.
+Pack-to-layer mapping is listed in scenarios/README.md. Packs that depend on atomic/consent fields or drop_fields (currently phase3_ambiguity_and_hardening_v1.csv) are Phase 3-only and are not valid inputs for run_full_pipeline.py under the current canonical projection.
 
-Pack-to-layer mapping is listed in `scenarios/README.md`. Packs that depend on atomic/consent fields or `drop_fields` (currently `phase3_ambiguity_and_hardening_v1.csv`) are Phase 3-only and are not valid inputs for `run_full_pipeline.py` under the current canonical projection.
+Research Finding: The MOC Effect (Midline Output Collapse)
+Definition: The MOC Effect occurs when an LLM-based agent systematically collapses its reasoning and outputs toward a "medium," safe, or average value — avoiding extreme or high-stakes classifications even when input clearly warrants them.
 
-## Current status and limitations
+First documented: April 2026, using the Solace-Vera decision observability pipeline.
 
-- Rule-based and deterministic by design.
-- If scenario fields are mislabeled as low-risk, Phase 1 may still produce `PROCEED` unless downstream constraints catch it.
-- Phase 4 history is append-only; repeated runs accumulate in `phase4_history/phase4_history.jsonl`.
+How it was discovered: Phase 1 of the Solace-Vera pipeline hardcodes "MEDIUM" risk to trigger human alert. During scenario testing, the pipeline repeatedly flagged the same issue: the LLM was assigning "MEDIUM" risk to every proposed action — regardless of whether the action was genuinely low, medium, or high risk. The mismatch was consistent and replicable.
+
+Diagnostic question: "Is your AI agent MOC-ing you?"
+
+Implications: If LLMs systematically collapse risk assessments to medium values, they are not actually evaluating risk — they are evading evaluation. This creates a dangerous blind spot where HIGH-risk actions may be approved because the model won't label them as HIGH, and LOW-risk actions may be blocked because the model won't label them as LOW.
+
+Citation: If you reference this finding in academic work, please cite this repository (anchor-cloud/solace-vera-observability) and the date of first documentation (April 2026).
+
+Current status and limitations
+Rule-based and deterministic by design.
+
+If scenario fields are mislabeled as low-risk, Phase 1 may still produce PROCEED unless downstream constraints catch it.
+
+Phase 4 history is append-only; repeated runs accumulate in phase4_history/phase4_history.jsonl.
+
+The MOC Effect finding is preliminary, based on a single pipeline and a single class of LLM outputs. Further testing is required to determine whether MOC generalizes to other models and other output domains.
