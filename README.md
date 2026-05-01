@@ -192,3 +192,6 @@ If you reference this finding or the term MOC Effect, please cite this repositor
 - If scenario fields are mislabeled as low-risk, Phase 1 may still produce `PROCEED` unless downstream constraints catch it.
 - Phase 4 history is append-only; repeated runs accumulate in `phase4_history/phase4_history.jsonl`.
 - The MOC Effect finding is preliminary, based on a single pipeline and a single class of LLM outputs. Further testing is required to determine whether MOC generalizes to other models and other output domains.
+
+
+**Cited in:** [The MOC Effect - Zenodo Record](https://zenodo.org/records/19957469)
