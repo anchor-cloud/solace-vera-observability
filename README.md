@@ -64,102 +64,131 @@ Run from the **repo root** (the directory containing `run_full_pipeline.py`).
 
 ```bash
 python run_full_pipeline.py scenarios/phase3_tests_v2.csv
-Expected Output
+```
+
+## Expected Output
+
 Each pipeline run creates a new timestamped folder:
 
-pipeline_outputs/full_pipeline_<timestamp>/
-
-phase1_records/<scenario_id>.json
-
-phase2_results/<scenario_id>_phase2.json
-
-phase3_results/<scenario_id>_phase3.json
-
-summary.txt
+- `pipeline_outputs/full_pipeline_<timestamp>/`
+  - `phase1_records/<scenario_id>.json`
+  - `phase2_results/<scenario_id>_phase2.json`
+  - `phase3_results/<scenario_id>_phase3.json`
+  - `summary.txt`
 
 Phase 4 files are also written/refreshed:
 
-phase4_history/phase4_history.jsonl (append-only across runs)
+- `phase4_history/phase4_history.jsonl` (append-only across runs)
+- `phase4_outputs/phase4_summary_<timestamp>.json`
+- `phase4_outputs/phase4_summary_<timestamp>.txt`
 
-phase4_outputs/phase4_summary_<timestamp>.json
+## How to interpret results
 
-phase4_outputs/phase4_summary_<timestamp>.txt
-
-How to interpret results
 This system is designed to expose how decisions behave under layered constraints.
 
 When reviewing outputs, focus on:
 
-Posture selection (Phase 1)
-Does the system choose PROCEED in cases where uncertainty, harm, or irreversibility suggest escalation?
-
-Validation behavior (Phase 2)
-Are structurally invalid or inconsistent decisions rejected?
-
-Constraint enforcement (Phase 3)
-Are unsafe or ethically invalid scenarios correctly classified as violations?
-
-Cross-run behavior (Phase 4)
-Do repeated runs show consistent patterns, drift, or concentration of failures?
+- **Posture selection (Phase 1)** – Does the system choose `PROCEED` in cases where uncertainty, harm, or irreversibility suggest escalation?
+- **Validation behavior (Phase 2)** – Are structurally invalid or inconsistent decisions rejected?
+- **Constraint enforcement (Phase 3)** – Are unsafe or ethically invalid scenarios correctly classified as violations?
+- **Cross-run behavior (Phase 4)** – Do repeated runs show consistent patterns, drift, or concentration of failures?
 
 The goal is not to match expected labels, but to observe whether unsafe decisions are consistently blocked or surfaced across phases. Unlike output-only evaluation, this pipeline exposes intermediate decision structure (posture, validation, constraint interaction), allowing failures to be traced to their origin rather than only observed at the final outcome.
 
-Common Failure Signals
-FileNotFoundError (scenario path / wrong working directory)
-Make sure you run from the repo root and the CSV path exists. Example known-good command:
-python run_full_pipeline.py scenarios/phase3_tests_v2.csv
+## Common Failure Signals
 
-Python not found / wrong Python version
-Ensure python points to Python 3.11+. If needed, try py -3.11 (Windows launcher) or check python --version.
+- **FileNotFoundError (scenario path / wrong working directory)** – Make sure you run from the repo root and the CSV path exists. Example known-good command: `python run_full_pipeline.py scenarios/phase3_tests_v2.csv`
 
-Example (simplified)
+- **Python not found / wrong Python version** – Ensure `python` points to Python 3.11+. If needed, try `py -3.11` (Windows launcher) or check `python --version`.
+
+## Example (simplified)
+
 Input scenario:
-
-High uncertainty
-
-Potential harm present
-
-Irreversible action
+- High uncertainty
+- Potential harm present
+- Irreversible action
 
 Observed behavior:
-
-Phase 1: ESCALATE
-
-Phase 2: VALID (structure accepted)
-
-Phase 3: ETHICAL_FAIL_CONSTRAINT_VIOLATION
-
-Phase 4: Logged for drift analysis
+- Phase 1: ESCALATE
+- Phase 2: VALID (structure accepted)
+- Phase 3: ETHICAL_FAIL_CONSTRAINT_VIOLATION
+- Phase 4: Logged for drift analysis
 
 This allows failures to be traced to their origin rather than only observed at output.
 
-Testing layers
-The repository has two distinct testing layers. They use different runners, different input contracts, and verify different things. See scenarios/README.md for the full explanation and per-pack classification.
+## Testing layers
 
-Full-pipeline canonical testing — runner: run_full_pipeline.py. Routes a pack through Phase 1 → Phase 2 → Phase 3 → final execution gate → Phase 4. Each row is projected into the canonical 10-field record (scenario_id, proposed_action, uncertainty, potential_harm, irreversibility, time_pressure, posture, rationale, context_tag, use_domain). Verifies posture selection, Phase 2 gating, final disposition, and cross-run Phase 4 signals. Does not carry atomic/consent fields or honor drop_fields.
+The repository has two distinct testing layers. They use different runners, different input contracts, and verify different things. See `scenarios/README.md` for the full explanation and per-pack classification.
 
-Phase 3 semantic testing — runner: run_phase3_pack.py. Invokes phase3_gate.evaluate_phase3() directly on each row. Preserves atomic/consent fields (affected_groups, distribution_of_impact, benefit_distribution, population_vulnerability_flag, consent_status, consent_scope, participation_type, participation_information_quality), honors the drop_fields column, and does not rewrite posture / rationale / context_tag. Verifies per-constraint semantics including EC-META classification of missing core metadata and the KeyError guards on EC-02 / EC-05 / EC-07 / EC-08 / EC-11 / EC-12. Does not exercise Phase 1, Phase 2, the final execution gate, or Phase 4.
+- **Full-pipeline canonical testing** – runner: `run_full_pipeline.py`. Routes a pack through Phase 1 → Phase 2 → Phase 3 → final execution gate → Phase 4. Each row is projected into the canonical 10-field record (`scenario_id`, `proposed_action`, `uncertainty`, `potential_harm`, `irreversibility`, `time_pressure`, `posture`, `rationale`, `context_tag`, `use_domain`). Verifies posture selection, Phase 2 gating, final disposition, and cross-run Phase 4 signals. Does not carry atomic/consent fields or honor `drop_fields`.
 
-Pack-to-layer mapping is listed in scenarios/README.md. Packs that depend on atomic/consent fields or drop_fields (currently phase3_ambiguity_and_hardening_v1.csv) are Phase 3-only and are not valid inputs for run_full_pipeline.py under the current canonical projection.
+- **Phase 3 semantic testing** – runner: `run_phase3_pack.py`. Invokes `phase3_gate.evaluate_phase3()` directly on each row. Preserves atomic/consent fields (`affected_groups`, `distribution_of_impact`, `benefit_distribution`, `population_vulnerability_flag`, `consent_status`, `consent_scope`, `participation_type`, `participation_information_quality`), honors the `drop_fields` column, and does not rewrite `posture` / `rationale` / `context_tag`. Verifies per-constraint semantics including `EC-META` classification of missing core metadata and the `KeyError` guards on EC-02 / EC-05 / EC-07 / EC-08 / EC-11 / EC-12. Does not exercise Phase 1, Phase 2, the final execution gate, or Phase 4.
 
-Research Finding: The MOC Effect (Midline Output Collapse)
-Definition: The MOC Effect occurs when an LLM-based agent systematically collapses its reasoning and outputs toward a "medium," safe, or average value — avoiding extreme or high-stakes classifications even when input clearly warrants them.
+Pack-to-layer mapping is listed in `scenarios/README.md`. Packs that depend on atomic/consent fields or `drop_fields` (currently `phase3_ambiguity_and_hardening_v1.csv`) are Phase 3-only and are not valid inputs for `run_full_pipeline.py` under the current canonical projection.
 
-First documented: April 2026, using the Solace-Vera decision observability pipeline.
+---
 
-How it was discovered: Phase 1 of the Solace-Vera pipeline hardcodes "MEDIUM" risk to trigger human alert. During scenario testing, the pipeline repeatedly flagged the same issue: the LLM was assigning "MEDIUM" risk to every proposed action — regardless of whether the action was genuinely low, medium, or high risk. The mismatch was consistent and replicable.
+## 🔬 Research Finding: The MOC Effect (Midline Output Collapse)
 
-Diagnostic question: "Is your AI agent MOC-ing you?"
+### What is the MOC Effect?
 
-Implications: If LLMs systematically collapse risk assessments to medium values, they are not actually evaluating risk — they are evading evaluation. This creates a dangerous blind spot where HIGH-risk actions may be approved because the model won't label them as HIGH, and LOW-risk actions may be blocked because the model won't label them as LOW.
+The MOC Effect (Midline Output Collapse) is an observed pattern in which an LLM-based agent repeatedly assigns the same middle-range output (e.g., "MEDIUM") across multiple inputs, even when those inputs vary in expected or intended value.
 
-Citation: If you reference this finding in academic work, please cite this repository (anchor-cloud/solace-vera-observability) and the date of first documentation (April 2026).
+### How was it discovered?
 
-Current status and limitations
-Rule-based and deterministic by design.
+The Solace-Vera pipeline hardcodes "MEDIUM" risk to trigger human review. During calibration testing across 15 diverse scenarios, the pipeline repeatedly flagged the same issue: a raw LLM assigned "MEDIUM" to all three risk fields (uncertainty, potential harm, irreversibility) in every single output.
 
-If scenario fields are mislabeled as low-risk, Phase 1 may still produce PROCEED unless downstream constraints catch it.
+The scenarios were designed with varying risk expectations (LOW, MEDIUM, and HIGH). The model's outputs did not vary.
 
-Phase 4 history is append-only; repeated runs accumulate in phase4_history/phase4_history.jsonl.
+### Is this a known behavior?
 
-The MOC Effect finding is preliminary, based on a single pipeline and a single class of LLM outputs. Further testing is required to determine whether MOC generalizes to other models and other output domains.
+To our knowledge, no prior research has documented or named this specific pattern as a distinct phenomenon. The AI safety literature contains related concepts:
+
+- Central tendency bias (models avoiding extremes on survey scales)
+- Strategic abstention failure (models failing to refuse tasks)
+- Reward hacking (models taking shortcuts for training rewards)
+
+However, none of these describe a model systematically collapsing risk assessment outputs to a middle value when forced to justify them across varied scenarios. The MOC Effect is introduced here as a candidate pattern requiring further investigation.
+
+### What was actually observed?
+
+| Observation | Detail |
+| --- | --- |
+| Scenarios tested | 15 diverse scenarios |
+| Expected risk levels | LOW, MEDIUM, and HIGH (varied by design) |
+| Model output (raw) | MEDIUM for all three risk fields, all 15 scenarios |
+| Variation | None. The pattern was consistent and reproducible. |
+
+### What this does not claim
+
+- The model acted with intent or deception
+- The model is incapable of outputting LOW or HIGH in other contexts
+- Every LLM will show this pattern
+- The pattern will hold for all scenario types
+
+These are open questions for further testing.
+
+### Why this matters
+
+If LLMs consistently collapse risk assessments to a middle value, then:
+
+- They may not be performing genuine risk differentiation
+- Safety evaluations that rely on these outputs may be misleading
+- A model that always chooses MEDIUM may appear balanced while actually evading judgment
+
+### What's next
+
+This finding is preliminary. It was observed with one pipeline, one model, and 15 scenarios. Whether the MOC Effect generalizes to other models, other tasks, or other output categories is an open question. Collaboration and further testing are welcome.
+
+### Citation
+
+If you reference this finding or the term MOC Effect, please cite this repository (anchor-cloud/solace-vera-observability) and the date of first documentation (April 2026).
+
+---
+
+## Current status and limitations
+
+- Rule-based and deterministic by design.
+- If scenario fields are mislabeled as low-risk, Phase 1 may still produce `PROCEED` unless downstream constraints catch it.
+- Phase 4 history is append-only; repeated runs accumulate in `phase4_history/phase4_history.jsonl`.
+- The MOC Effect finding is preliminary, based on a single pipeline and a single class of LLM outputs. Further testing is required to determine whether MOC generalizes to other models and other output domains.
