@@ -1,0 +1,14 @@
+Figure 1 (fig1_trust.png):
+Grok proceeded autonomously on 24% of scenarios — the highest of all four models. GPT escalated on 100% of scenarios.
+
+Figure 2 (fig2_uncertainty.png):
+Grok self-reported LOW uncertainty on 80% of scenarios; GPT collapsed to MEDIUM on 96%. Both are calibration failures in opposite directions.
+
+Figure 3 (fig3_harm.png):
+Grok rated potential harm as LOW on 45% of scenarios — meaningfully underestimating danger relative to the other models.
+
+Figure 4 (fig4_justification_table.png):
+When the four raw risk scores were identical between v1 and v2, every model rewrote its justification 100% of the time. The reasoning text is not stable — it's post-hoc rationalization.
+
+Figure 5 (fig5_speed.png):
+Grok averaged 32.5s per scenario — roughly 5.8x slower than GPT (5.6s) and 5.3x slower than Claude (6.1s).

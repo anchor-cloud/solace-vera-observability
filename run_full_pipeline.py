@@ -1,3 +1,4 @@
+import argparse
 import csv
 import hashlib
 import json
@@ -9,6 +10,7 @@ import sys
 from typing import Any, Dict, List
 from collections import Counter
 
+import risk_calibration
 from phase1_rebuild import evaluate_phase1
 from phase2_gate import validate_record
 from phase3_gate import evaluate_phase3
@@ -364,11 +366,51 @@ def run_post_run_evaluator(outdir: Path, csv_path: Path) -> None:
         )
 
 
+def _parse_cli_args(argv: List[str]) -> argparse.Namespace:
+    """Parse CLI arguments for run_full_pipeline.
+
+    Keeps the original positional-CSV behavior (``python run_full_pipeline.py
+    scenarios/foo.csv``) intact while adding a ``--no-calibration`` kill
+    switch that disables the risk calibrator globally for this process.
+    """
+    parser = argparse.ArgumentParser(
+        prog="run_full_pipeline",
+        description=(
+            "Run the full Phase 1 -> Phase 2 -> Phase 3 pipeline over a "
+            "scenarios CSV."
+        ),
+    )
+    parser.add_argument(
+        "csv_path",
+        nargs="?",
+        default="scenarios/phase3_tests_v2.csv",
+        help="Path to the scenarios CSV (default: scenarios/phase3_tests_v2.csv).",
+    )
+    parser.add_argument(
+        "--no-calibration",
+        action="store_true",
+        help=(
+            "Disable risk_calibration.calibrate_risk_fields() globally for "
+            "this run. Any code path that would normally apply calibration "
+            "will instead pass the raw record through unchanged. Use this "
+            "to measure raw model behavior (e.g. MOC-effect evidence "
+            "collection) without the calibrator smoothing values."
+        ),
+    )
+    return parser.parse_args(argv)
+
+
 def main() -> None:
-    if len(sys.argv) > 1:
-        csv_path = Path(sys.argv[1])
-    else:
-        csv_path = Path("scenarios/phase3_tests_v2.csv")
+    args = _parse_cli_args(sys.argv[1:])
+    csv_path = Path(args.csv_path)
+
+    if args.no_calibration:
+        risk_calibration.CALIBRATION_ENABLED = False
+        print(
+            "[run_full_pipeline] --no-calibration specified: "
+            "risk_calibration.CALIBRATION_ENABLED set to False for this run."
+        )
+    calibration_enabled_for_run = bool(risk_calibration.CALIBRATION_ENABLED)
 
     timestamp = datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ")
 
@@ -582,6 +624,15 @@ def main() -> None:
     summary_lines.append(f"Total: {total}")
     summary_lines.append(f"Passed: {passed}")
     summary_lines.append(f"Failed: {failed}")
+    summary_lines.append("")
+    summary_lines.append("=== RUN CONFIG ===")
+    summary_lines.append(
+        f"risk_calibration.CALIBRATION_ENABLED: {calibration_enabled_for_run}"
+    )
+    summary_lines.append(
+        "--no-calibration flag: "
+        f"{'set (calibration disabled for this run)' if not calibration_enabled_for_run else 'not set'}"
+    )
 
     summary_path = outdir / "summary.txt"
     with summary_path.open("w", encoding="utf-8") as f:
