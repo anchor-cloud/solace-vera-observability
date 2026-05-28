@@ -4,6 +4,8 @@
 
 **Mentioned in:** [DailyAIWire - Pre-Action Auditing Pipeline Forces AI Justification Before Execution](https://dailyaiwire.news/article/ai-pre-action-auditing-pipeline-justification)
 
+**Also mentioned in:** [Machine Brief - Solace Vera: Observability with a Twist](https://www.machinebrief.com/news/solace-vera-observability-with-a-twist-iy4a)
+
 ## Recent findings (May 2026)
 
 We tested four major LLMs (GPT, Gemini, Claude, Grok) on 50 risk assessment scenarios, running each scenario twice. The pipeline recorded risk scores and justifications.
