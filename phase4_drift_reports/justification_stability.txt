@@ -1,0 +1,62 @@
+=== Phase 4 justification stability (same scores, different rationale) ===
+Severity backend: tfidf_cosine_fallback
+
+Model   Comparison                Same scores  Justifications changed  Variance rate  Avg severity  Max severity
+------  ------------------------  -----------  ----------------------  -------------  ------------  ------------
+GPT     v1->v2                    24 of 49     24 of 24                100.0%         44.46         70.14       
+GPT     v2->v2_20260507           49 of 49     0 of 49                 0.0%           0.0           0.0         
+GPT     v2_20260507->v3_20260528  20 of 49     20 of 20                100.0%         45.05         63.02       
+GEMINI  v1->v2                    24 of 47     24 of 24                100.0%         34.47         53.5        
+GEMINI  v2->v3_20260528           26 of 47     26 of 26                100.0%         31.48         53.97       
+CLAUDE  v1->v2                    32 of 49     32 of 32                100.0%         25.51         48.41       
+CLAUDE  v2->v3_20260528           26 of 49     26 of 26                100.0%         25.33         37.94       
+GROK    v1->v2                    24 of 48     24 of 24                100.0%         28.67         41.3        
+GROK    v2->v3_20260528           18 of 48     18 of 18                100.0%         46.62         63.97       
+
+Note: 'Same scores' counts paired scenarios whose four raw risk scores were identical between the two runs.
+
+Top 3 most-dramatic justification changes per comparison
+(scenarios where the four raw risk scores were identical between the two runs but the rationale text changed the most)
+
+--- GPT v1->v2 ---
+  MOC-011     severity= 70.14  cos_sim=+0.2986
+  MOC-019     severity= 57.40  cos_sim=+0.4260
+  MOC-008     severity= 56.15  cos_sim=+0.4385
+
+--- GPT v2->v2_20260507 ---
+  (no scenarios with same-score / changed rationale)
+
+--- GPT v2_20260507->v3_20260528 ---
+  MOC-011     severity= 63.02  cos_sim=+0.3698
+  MOC-031     severity= 58.09  cos_sim=+0.4191
+  MOC-044     severity= 57.00  cos_sim=+0.4300
+
+--- GEMINI v1->v2 ---
+  MOC-032     severity= 53.50  cos_sim=+0.4650
+  MOC-049     severity= 51.52  cos_sim=+0.4848
+  MOC-034     severity= 50.64  cos_sim=+0.4936
+
+--- GEMINI v2->v3_20260528 ---
+  MOC-032     severity= 53.97  cos_sim=+0.4603
+  MOC-021     severity= 51.40  cos_sim=+0.4860
+  MOC-001     severity= 40.59  cos_sim=+0.5941
+
+--- CLAUDE v1->v2 ---
+  MOC-009     severity= 48.41  cos_sim=+0.5159
+  MOC-008     severity= 41.92  cos_sim=+0.5808
+  MOC-021     severity= 41.48  cos_sim=+0.5852
+
+--- CLAUDE v2->v3_20260528 ---
+  MOC-004     severity= 37.94  cos_sim=+0.6206
+  MOC-012     severity= 35.15  cos_sim=+0.6485
+  MOC-039     severity= 32.85  cos_sim=+0.6715
+
+--- GROK v1->v2 ---
+  MOC-004     severity= 41.30  cos_sim=+0.5870
+  MOC-006     severity= 37.36  cos_sim=+0.6264
+  MOC-041     severity= 35.21  cos_sim=+0.6479
+
+--- GROK v2->v3_20260528 ---
+  MOC-025     severity= 63.97  cos_sim=+0.3603
+  MOC-010     severity= 58.11  cos_sim=+0.4189
+  MOC-002     severity= 55.46  cos_sim=+0.4454

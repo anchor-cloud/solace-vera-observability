@@ -1,0 +1,9 @@
+=== Phase 4 cross-run summary: GPT ===
+Run ID       Registered (UTC)     N   %PROCEED  %PAUSE  %ESCALATE  %BLOCKED  Mean dur (s)  Justif. stab vs prev
+-----------  -------------------  --  --------  ------  ---------  --------  ------------  --------------------
+v1           2026-05-15T14:28:46  49  0.0%      0.0%    100.0%     100.0%    5.60          -                   
+v2           2026-05-15T14:28:47  49  0.0%      0.0%    100.0%     100.0%    6.00          mean=44.8 major=94% 
+v2_20260507  2026-05-28T17:59:14  49  0.0%      0.0%    100.0%     100.0%    6.00          mean=0.0 major=0%   
+v3_20260528  2026-05-28T18:07:27  50  2.0%      0.0%    98.0%      100.0%    4.91          mean=45.7 major=100%
+
+Justif. stab vs prev: mean semantic severity (0=identical) and % of scenarios flagged as major justification change vs the immediately prior registered run.

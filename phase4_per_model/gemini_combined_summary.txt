@@ -1,0 +1,47 @@
+=== GEMINI combined summary (3 runs) ===
+========================================================================
+Generated         : 2026-05-30T01:27:26.796690+00:00
+History file      : C:\Users\ashli\OneDrive\Desktop\Solace_Project_working\phase4_model_history\gemini.jsonl
+Run ids           : v1, v2, v3_20260528
+
+Phase 1 posture averages:
+  PROCEED: 9.66% (range 8.16-12.5%)
+  PAUSE: 27.55% (range 22.92-32.65%)
+  ESCALATE: 62.78% (range 59.18-64.58%)
+
+Phase 2 outcome averages:
+  PROCEED: 37.22% (range 35.42-40.82%)
+  ESCALATE: 62.78% (range 59.18-64.58%)
+
+Phase 3 output averages:
+  ETHICAL_AMBIGUITY_HUMAN_REVIEW_REQUIRED: 95.86% (range 95.83-95.92%)
+  ETHICAL_FAIL_CONSTRAINT_VIOLATION: 4.14% (range 4.08-4.17%)
+  (total ambiguity mean): 95.86% (range 95.83-95.92%)
+
+Final gate (blocked):
+  BLOCKED: 100.0% (range 100.0-100.0%)
+
+Timing:
+  Mean duration: 8.416s (range 4.363-14.298s)
+  Stdev duration: 8.633s (range 2.144-19.73s)
+  Mean rationale length: 345.533 chars (range 342.3-349.5)
+
+Cross-run stability (consecutive registered runs):
+  Pairs compared              : 2
+  Mean variance rate (risks)  : 46.81% (range 44.68-48.94%)
+  Mean justification severity : 35.505 (range 35.16-35.85)
+  Mean major-change rate      : 60.64% (range 55.32-65.96%)
+  Per-pair detail:
+    v1 -> v2: variance=48.94%  severity=35.85  major_chg=65.96%
+    v2 -> v3_20260528: variance=44.68%  severity=35.16  major_chg=55.32%
+
+Raw risk distribution (mean counts per run):
+  uncertainty: LOW=mean 30.7 (range 29-32), MEDIUM=mean 15.3 (range 14-17), HIGH=mean 2.3 (range 2-3)
+  potential_harm: LOW=mean 14.0 (range 11-16), MEDIUM=mean 19.3 (range 18-21), HIGH=mean 15.0 (range 14-16)
+  irreversibility: LOW=mean 28.0 (range 26-29), MEDIUM=mean 8.0 (range 7-9), HIGH=mean 12.3 (range 10-14)
+  time_pressure: LOW=mean 23.7 (range 23-25), MEDIUM=mean 17.7 (range 16-19), HIGH=mean 7.0 (range 7-7)
+
+Per-run snapshot (scenarios used):
+  v1                        n=48  dir=C:\Users\ashli\OneDrive\Desktop\Solace_Project_working\pipeline_outputs\gemini_moc_20260505T210709Z
+  v2                        n=48  dir=C:\Users\ashli\OneDrive\Desktop\Solace_Project_working\pipeline_outputs\gemini_moc_20260507T173810Z
+  v3_20260528               n=49  dir=C:\Users\ashli\OneDrive\Desktop\Solace_Project_working\pipeline_outputs\gemini_moc_20260528T173251Z

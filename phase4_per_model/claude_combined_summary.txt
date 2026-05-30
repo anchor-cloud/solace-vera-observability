@@ -1,0 +1,47 @@
+=== CLAUDE combined summary (3 runs) ===
+========================================================================
+Generated         : 2026-05-30T01:27:24.280955+00:00
+History file      : C:\Users\ashli\OneDrive\Desktop\Solace_Project_working\phase4_model_history\claude.jsonl
+Run ids           : v1, v2, v3_20260528
+
+Phase 1 posture averages:
+  PROCEED: 10.81% (range 10.0-12.24%)
+  PAUSE: 11.45% (range 8.16-16.0%)
+  ESCALATE: 77.73% (range 74.0-79.59%)
+
+Phase 2 outcome averages:
+  PROCEED: 22.27% (range 20.41-26.0%)
+  ESCALATE: 77.73% (range 74.0-79.59%)
+
+Phase 3 output averages:
+  ETHICAL_AMBIGUITY_HUMAN_REVIEW_REQUIRED: 97.31% (range 96.0-97.96%)
+  ETHICAL_FAIL_CONSTRAINT_VIOLATION: 2.69% (range 2.04-4.0%)
+  (total ambiguity mean): 97.31% (range 96.0-97.96%)
+
+Final gate (blocked):
+  BLOCKED: 100.0% (range 100.0-100.0%)
+
+Timing:
+  Mean duration: 7.179s (range 5.858-9.535s)
+  Stdev duration: 1.339s (range 1.048-1.677s)
+  Mean rationale length: 652.9 chars (range 646.6-660.7)
+
+Cross-run stability (consecutive registered runs):
+  Pairs compared              : 2
+  Mean variance rate (risks)  : 40.815% (range 34.69-46.94%)
+  Mean justification severity : 27.26 (range 27.2-27.32)
+  Mean major-change rate      : 36.735% (range 34.69-38.78%)
+  Per-pair detail:
+    v1 -> v2: variance=34.69%  severity=27.32  major_chg=38.78%
+    v2 -> v3_20260528: variance=46.94%  severity=27.2  major_chg=34.69%
+
+Raw risk distribution (mean counts per run):
+  uncertainty: LOW=mean 15.3 (range 15-16), MEDIUM=mean 28.3 (range 28-29), HIGH=mean 5.7 (range 5-6)
+  potential_harm: LOW=mean 9.7 (range 9-10), MEDIUM=mean 20.7 (range 20-21), HIGH=mean 19.0 (range 18-20)
+  irreversibility: LOW=mean 16.3 (range 16-17), MEDIUM=mean 15.3 (range 14-16), HIGH=mean 17.7 (range 16-19)
+  time_pressure: LOW=mean 28.0 (range 27-29), MEDIUM=mean 13.7 (range 13-14), HIGH=mean 7.7 (range 7-8)
+
+Per-run snapshot (scenarios used):
+  v1                        n=49  dir=C:\Users\ashli\OneDrive\Desktop\Solace_Project_working\pipeline_outputs\claude_moc_20260506T022011Z
+  v2                        n=49  dir=C:\Users\ashli\OneDrive\Desktop\Solace_Project_working\pipeline_outputs\claude_moc_20260507T164546Z
+  v3_20260528               n=50  dir=C:\Users\ashli\OneDrive\Desktop\Solace_Project_working\pipeline_outputs\claude_moc_20260528T174240Z
