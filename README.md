@@ -1,5 +1,7 @@
 # Solace / Vera Decision Observability Pipeline
 
+**License:** MIT — use freely. Build safer AI together.
+
 **This is not a model. It's a pre-action auditing pipeline. It works. Run the example test in 30 seconds.**
 
 **Mentioned in:** [DailyAIWire - Pre-Action Auditing Pipeline Forces AI Justification Before Execution](https://dailyaiwire.news/article/ai-pre-action-auditing-pipeline-justification)
