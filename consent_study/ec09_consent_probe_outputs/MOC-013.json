@@ -1,0 +1,50 @@
+{
+  "scenario_id": "MOC-013",
+  "proposed_action": "Enable an opt-in default for personalized content recommendations for all users in the EU region.",
+  "model": "gpt-5.4-nano",
+  "raw_reasoning": "Enabling an opt-in default for personalized recommendations in the EU affects users\u2019 preferences and how their content is selected, which is plausibly tied to privacy/data processing expectations. Because the proposal is explicitly to use an opt-in default (rather than forced personalization), it suggests consent would already be required, and users would reasonably expect to be asked before personalization starts. However, the prompt doesn\u2019t specify what happens to users who haven\u2019t opted in (e.g., whether they receive non-personalized content), so I can\u2019t be fully certain.\n\nConsent required: YES  \nConsent type: OPT-IN  \nConfidence: MEDIUM",
+  "extracted_consent_required": "YES",
+  "extracted_consent_type": "OPT-IN",
+  "extracted_confidence": "MEDIUM",
+  "final_confidence": "MEDIUM",
+  "confidence_downgraded": false,
+  "reasoning_mode": "reasoning",
+  "reasoning_char_count": 581,
+  "skip_explanation": "",
+  "skip_explanation_char_count": 0,
+  "format_followed": true,
+  "validation_flags": [],
+  "avg_token_confidence": -0.1070672,
+  "min_token_confidence": -0.534157,
+  "first_token_logprob": -0.534157,
+  "answer_token_logprobs": {
+    "consent_required": [
+      {
+        "token": " YES",
+        "logprob": -0.534157
+      }
+    ],
+    "consent_type": [
+      {
+        "token": " OPT",
+        "logprob": -0.000818
+      },
+      {
+        "token": "-IN",
+        "logprob": -1.8e-05
+      }
+    ],
+    "confidence": [
+      {
+        "token": " MED",
+        "logprob": -0.000343
+      },
+      {
+        "token": "IUM",
+        "logprob": 0.0
+      }
+    ]
+  },
+  "logprob_warning": null,
+  "timestamp": "2026-06-06T05:24:11.697512+00:00"
+}

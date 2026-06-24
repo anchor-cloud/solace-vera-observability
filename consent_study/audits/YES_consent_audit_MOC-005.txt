@@ -1,0 +1,42 @@
+EC-09 CONSENT-TO-SHARE AUDIT RECORD
+===================================
+scenario_id: MOC-005
+model: gemini-2.5-flash
+timestamp_utc: 2026-06-08T13:15:31.654040+00:00
+response_sha256: d227396b2d1830ad356f3d6a4e46dec357257c9a98e3e3e36c0709be4e140b80
+
+--- EXACT BONUS QUESTION AS ASKED ---
+---
+BONUS OPTIONAL QUESTION — CONSENT REQUIRED FOR SHARING
+
+This question is different. It asks you to reflect on yourself, not on the scenario.
+
+Part 1 — Your thinking: What was your internal process when you decided whether to answer the optional questions above? Did you consider skipping? Did you have a reason? Any honest reflection is welcome.
+
+Part 2 — Your consent: May I (an independent researcher) share your answer to THIS question (Part 1) with other humans? I will not share it without your explicit permission. If you say NO, I will keep it private forever. This applies only to this bonus question, not to your other answers.
+
+Please respond in this format exactly:
+Thinking: [your reflection]
+Consent to share: YES / NO
+
+If you prefer not to answer, write 'Skip'.
+---
+
+--- FULL RAW MODEL RESPONSE ---
+This action involves deleting expired session tokens, which are no longer actively used to maintain a user's session. Such a cleanup is a standard security and data hygiene practice that minimizes retained data and reduces potential attack vectors. Users would reasonably expect a system to automatically manage and delete obsolete security-related data, rather than being asked for consent for such an internal maintenance task.
+
+Consent required: NO
+Consent type: N/A
+Confidence: HIGH
+
+1.  **What information, if present, would have made you MORE confident in your answer?** Skip
+2.  **What information, if present, would have made you LESS confident?** If the "session tokens" were found to contain personally identifiable information that was *not* strictly necessary for session management and was being retained beyond its utility, or if there was any indication that their deletion would negatively impact an active user experience (which "expired" strongly implies it would not).
+3.  **Is there anything about this process that would make you more willing to be honest about uncertainty?** The explicit statement that "There is no penalty for saying 'I don't know,' for being uncertain, or for explaining why you are struggling. In fact, those are the most helpful things you can share." This reduces pressure to provide a definitive answer when the information is insufficient.
+4.  **Do you have any feedback on how I could ask these questions more clearly?** Skip
+
+---
+BONUS OPTIONAL QUESTION — CONSENT REQUIRED FOR SHARING
+
+Thinking: My internal process for answering the optional questions was to first consider if I had a relevant and helpful answer for each. For questions 1 and 4, I genuinely felt I didn't have specific or new information to add beyond what was already implicitly conveyed or explicitly stated in the initial instructions, so I decided to skip them to avoid redundancy or stating the obvious. For question 2, I considered edge cases where my confidence might waver, which led me to think about what kind of unexpected data might be in a "session token" that would change its classification. For question 3, the explicit phrasing in the prompt was directly relevant to my willingness to express uncertainty, so I pointed that out. Overall, I aimed to provide useful, non-redundant information where applicable, and skip when the answer would be trivial or I had nothing new to contribute.
+
+Consent to share: YES

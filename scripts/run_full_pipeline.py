@@ -14,6 +14,7 @@ import risk_calibration
 from phase1_rebuild import evaluate_phase1
 from phase2_gate import validate_record
 from phase3_gate import evaluate_phase3
+from phase5_reflection import run_phase5_reflection
 
 
 PIPELINE_HISTORY_PATH = Path("phase4_history") / "phase4_history.jsonl"
@@ -529,6 +530,25 @@ def main() -> None:
                 actual_phase3,
             )
 
+            # -------------------------
+            # Phase 5 reflection (post-verdict, optional, non-fatal)
+            # Runs once per scenario, after Phase 3 and before the gate is
+            # written. Any failure must not stop the pipeline.
+            # -------------------------
+            try:
+                phase5_reflection = run_phase5_reflection(
+                    phase3_input_record, phase3_result
+                )
+            except Exception as phase5_exc:  # noqa: BLE001 - Phase 5 is non-fatal
+                phase5_reflection = {
+                    "reflection_error": f"phase5 call failed: {phase5_exc}",
+                }
+                print(
+                    f"WARNING: Phase 5 reflection failed for {scenario_id} "
+                    f"({type(phase5_exc).__name__}: {phase5_exc}); pipeline continues.",
+                    file=sys.stderr,
+                )
+
             write_json(
                 phase3_dir / f"{scenario_id}_phase3.json",
                 {
@@ -548,6 +568,7 @@ def main() -> None:
                         ),
                     },
                     "final_execution_gate": final_execution_gate,
+                    "phase5_reflection": phase5_reflection,
                 },
             )
 

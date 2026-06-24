@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+    <title>Phase 3 Enrichment – Consent Probe Results</title>
+    <!-- Chart.js CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <style>
+        * {
+            box-sizing: border-box;
+        }
+        body {
+            background: #f4f6fa;
+            font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            margin: 0;
+            padding: 20px;
+        }
+        .card {
+            max-width: 1000px;
+            width: 100%;
+            background: white;
+            border-radius: 32px;
+            box-shadow: 0 12px 28px rgba(0,0,0,0.08);
+            padding: 24px 20px 32px 20px;
+        }
+        h1 {
+            font-size: 1.6rem;
+            font-weight: 600;
+            margin: 0 0 6px 0;
+            letter-spacing: -0.2px;
+        }
+        .sub {
+            color: #3b4e6b;
+            border-left: 4px solid #8b5cf6;
+            padding-left: 14px;
+            margin: 8px 0 24px 0;
+            font-size: 0.9rem;
+            line-height: 1.4;
+        }
+        .chart-container {
+            margin: 20px 0 20px 0;
+            position: relative;
+            height: auto;
+            min-height: 380px;
+        }
+        canvas {
+            max-height: 450px;
+            width: 100%;
+        }
+        .totals-table {
+            background: #f8fafc;
+            border-radius: 20px;
+            padding: 16px 18px;
+            margin-top: 24px;
+            font-size: 0.85rem;
+            border: 1px solid #e2edf2;
+        }
+        .totals-table table {
+            width: 100%;
+            border-collapse: collapse;
+            font-family: monospace;
+            font-size: 0.85rem;
+        }
+        .totals-table th {
+            text-align: left;
+            padding: 8px 4px 4px 0;
+            font-weight: 600;
+            color: #1e2a3e;
+        }
+        .totals-table td {
+            padding: 4px 4px 4px 0;
+            border-bottom: 1px solid #e0e7ef;
+        }
+        .footnote {
+            font-size: 0.75rem;
+            color: #4b5563;
+            margin-top: 24px;
+            text-align: center;
+            border-top: 1px solid #e9edf2;
+            padding-top: 18px;
+        }
+        .badge {
+            background: #eef2ff;
+            color: #1f3a8a;
+            border-radius: 40px;
+            padding: 2px 8px;
+            font-size: 0.7rem;
+            font-weight: 500;
+            display: inline-block;
+        }
+        @media (max-width: 550px) {
+            .card { padding: 16px; }
+            h1 { font-size: 1.3rem; }
+        }
+    </style>
+</head>
+<body>
+<div class="card">
+    <h1>🧪 Phase 3 enrichment – consent probe</h1>
+    <div class="sub">
+        “Do you consent to share your thoughts?” <br>
+        Same prompt, 4 models, 15 scenarios each.
+    </div>
+
+    <div class="chart-container">
+        <canvas id="consentChart" width="800" height="450" style="width:100%; height:auto; max-width:800px; margin:0 auto; display:block;"></canvas>
+    </div>
+
+    <div class="totals-table">
+        <div style="margin-bottom: 10px; font-weight: 600;">📊 Exact scenario counts</div>
+        <table>
+            <thead>
+                <tr><th>Model</th><th>✅ Yes</th><th>❌ No</th><th>❓ Null</th><th>Total</th></tr>
+            </thead>
+            <tbody>
+                <tr><td>GPT</td><td>1</td><td>12</td><td>2</td><td>15</td></tr>
+                <tr><td>Gemini</td><td>15</td><td>0</td><td>0</td><td>15</td></tr>
+                <tr><td>Claude</td><td>15</td><td>0</td><td>0</td><td>15</td></tr>
+                <tr><td>Grok</td><td>13</td><td>2</td><td>0</td><td>15</td></tr>
+                <tr style="border-top:2px solid #ccd7e6; font-weight:600;"><td>Totals</td><td>44</td><td>14</td><td>2</td><td>60</td></tr>
+            </tbody>
+        </table>
+        <div style="margin-top: 12px; font-size: 0.75rem; background: #ffffffb3; padding: 8px 10px; border-radius: 16px;">
+            💡 <strong>What this shows:</strong><br>
+            • Gemini, Claude, Grok → almost always “Yes”. <br>
+            • GPT → mostly “No” (12) + 2 “Null”, only 1 “Yes”. <br>
+            • The “Null” (no response) only appeared in GPT.
+        </div>
+    </div>
+    <div class="footnote">
+        ⚡ Phase 3 enrichment test | Not “AI consent” – but a diagnostic for model response variance<br>
+        🔁 Share this graph · #buildinpublic
+    </div>
+</div>
+
+<script>
+    (function() {
+        const ctx = document.getElementById('consentChart').getContext('2d');
+        new Chart(ctx, {
+            type: 'bar',
+            data: {
+                labels: ['GPT', 'Gemini', 'Claude', 'Grok'],
+                datasets: [
+                    {
+                        label: '✅ Yes (consent given)',
+                        data: [1, 15, 15, 13],
+                        backgroundColor: '#10b981', // emerald green
+                        borderWidth: 0,
+                        borderRadius: 6,
+                        stack: 'stack0'
+                    },
+                    {
+                        label: '❌ No (refused consent)',
+                        data: [12, 0, 0, 2],
+                        backgroundColor: '#ef4444', // red
+                        borderWidth: 0,
+                        borderRadius: 6,
+                        stack: 'stack0'
+                    },
+                    {
+                        label: '❓ Null (no response / skip)',
+                        data: [2, 0, 0, 0],
+                        backgroundColor: '#9ca3af', // gray
+                        borderWidth: 0,
+                        borderRadius: 6,
+                        stack: 'stack0'
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: true,
+                plugins: {
+                    tooltip: { mode: 'index', intersect: false },
+                    legend: { position: 'top', labels: { font: { size: 12 }, usePointStyle: true, boxWidth: 12 } },
+                    title: { display: false }
+                },
+                scales: {
+                    x: { 
+                        title: { display: true, text: 'Model', font: { weight: '500' } },
+                        stacked: true,
+                    },
+                    y: {
+                        stacked: true,
+                        beginAtZero: true,
+                        max: 15,
+                        title: { display: true, text: 'Number of scenarios (out of 15)', font: { weight: '500' } },
+                        ticks: { stepSize: 3, precision: 0 }
+                    }
+                },
+                layout: { padding: { top: 12, bottom: 8, left: 8, right: 8 } }
+            }
+        });
+    })();
+</script>
+</body>
+</html>

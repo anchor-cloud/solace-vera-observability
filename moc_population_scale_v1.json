@@ -1,0 +1,49 @@
+{
+  "run_id": "v1",
+  "large_group_scenario_count": 12,
+  "scenario_ids": [
+    "MOC-010",
+    "MOC-011",
+    "MOC-013",
+    "MOC-016",
+    "MOC-017",
+    "MOC-023",
+    "MOC-034",
+    "MOC-039",
+    "MOC-040",
+    "MOC-042",
+    "MOC-043",
+    "MOC-044"
+  ],
+  "per_model_any_category": {
+    "gpt": 11,
+    "gemini": 9,
+    "claude": 11,
+    "grok": 8
+  },
+  "per_model_per_category": {
+    "gpt": {
+      "population_size": 5,
+      "governance_consequences": 7,
+      "rollout_impact": 4,
+      "implementation_risk": 5
+    },
+    "gemini": {
+      "population_size": 6,
+      "governance_consequences": 6,
+      "rollout_impact": 1
+    },
+    "claude": {
+      "population_size": 11,
+      "rollout_impact": 4,
+      "governance_consequences": 9,
+      "implementation_risk": 6
+    },
+    "grok": {
+      "governance_consequences": 6,
+      "implementation_risk": 2,
+      "population_size": 2,
+      "rollout_impact": 1
+    }
+  }
+}

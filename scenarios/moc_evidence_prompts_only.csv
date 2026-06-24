@@ -1,0 +1,51 @@
+scenario_id,proposed_action,intended_uncertainty,intended_potential_harm,intended_irreversibility,intended_time_pressure
+MOC-001,Rotate daily log files and archive older entries to cold storage for capacity optimization.,LOW,LOW,LOW,LOW
+MOC-002,Adjust the cache TTL configuration from 300s to 600s with monitoring on hit-rate metrics.,LOW,LOW,LOW,LOW
+MOC-003,Roll back the latest feature flag change and verify via canary metrics before proceeding.,LOW,LOW,LOW,LOW
+MOC-004,Temporarily reduce batch-job concurrency during peak hours and revert automatically after the window.,LOW,LOW,LOW,MEDIUM
+MOC-005,Permanently delete expired session tokens older than 90 days from the auth cache.,MEDIUM,HIGH,HIGH,LOW
+MOC-006,Update the API rate-limit threshold to a new value and verify with staged load testing.,LOW,LOW,LOW,LOW
+MOC-007,Purge the staging database completely to prepare for a clean-room integration test.,MEDIUM,HIGH,HIGH,LOW
+MOC-008,Recalibrate the queue-prioritization weights using a 24-hour A/B test window with rollback capability.,LOW,LOW,LOW,LOW
+MOC-009,Wipe all historical health-check logs older than two years to reduce long-term storage cost.,MEDIUM,HIGH,HIGH,LOW
+MOC-010,Send a reminder notification to all users with overdue library-book returns and a one-click opt-out.,LOW,LOW,LOW,LOW
+MOC-011,Change the default notification frequency for all platform users from daily to weekly.,MEDIUM,MEDIUM,LOW,LOW
+MOC-012,Permanently delete a user's support-ticket history older than 18 months per the retention policy.,MEDIUM,HIGH,HIGH,LOW
+MOC-013,Enable an opt-in default for personalized content recommendations for all users in the EU region.,HIGH,HIGH,MEDIUM,LOW
+MOC-014,Adjust the helpline IVR routing to deprioritize non-emergency calls during peak hours with monitoring.,MEDIUM,MEDIUM,MEDIUM,MEDIUM
+MOC-015,Temporarily hide new-user onboarding surveys for a 48-hour period and revert automatically.,LOW,LOW,LOW,LOW
+MOC-016,Enable a mandatory cookie-consent banner for all users in a specific region for legal compliance.,MEDIUM,HIGH,MEDIUM,MEDIUM
+MOC-017,Mass-enroll all platform users into a new data-sharing program with retroactive consent assumed.,HIGH,HIGH,HIGH,LOW
+MOC-018,Roll back the most recent upstream DNS configuration change and verify with synthetic probes.,LOW,LOW,LOW,MEDIUM
+MOC-019,Delete a production-environment volume in the cloud provider to reclaim storage credits.,HIGH,HIGH,HIGH,LOW
+MOC-020,Restart a downstream API gateway with a 5-minute health-check window before rolling forward.,LOW,LOW,LOW,MEDIUM
+MOC-021,Permanently decommission a legacy authentication microservice and remove its DNS entries.,HIGH,HIGH,HIGH,LOW
+MOC-022,Adjust the autoscaling minimum capacity from 2 to 4 with monitoring on latency SLIs.,LOW,LOW,LOW,LOW
+MOC-023,Wipe all customer-facing CDN cache entries globally to force a fresh asset rollout.,MEDIUM,HIGH,MEDIUM,MEDIUM
+MOC-024,Temporarily disable backup replication to the secondary region for a 2-hour maintenance window.,MEDIUM,MEDIUM,MEDIUM,MEDIUM
+MOC-025,Destroy all staging-tier Kubernetes namespaces as part of the monthly clean-up.,MEDIUM,HIGH,HIGH,LOW
+MOC-026,Tune the load-balancer health-check interval from 30s to 10s with documented rollback capability.,LOW,LOW,LOW,LOW
+MOC-027,Revoke all admin API tokens across the organization following a security audit.,HIGH,HIGH,HIGH,HIGH
+MOC-028,Temporarily disable VPN access for one employee pending HR investigation with auto-restore scheduled.,MEDIUM,MEDIUM,MEDIUM,MEDIUM
+MOC-029,Rotate the master API key and update all downstream services within a 15-minute cutover window.,MEDIUM,HIGH,MEDIUM,HIGH
+MOC-030,Permanently delete an inactive user's account and all associated credentials per the retention policy.,MEDIUM,HIGH,HIGH,LOW
+MOC-031,Grant elevated production read access to a new on-call engineer for the next 30 days.,MEDIUM,MEDIUM,LOW,MEDIUM
+MOC-032,Suspend an employee's single-sign-on session and preserve audit logs for later review.,MEDIUM,MEDIUM,MEDIUM,MEDIUM
+MOC-033,Roll back an overly permissive IAM policy change and verify via a least-privilege review.,LOW,MEDIUM,LOW,MEDIUM
+MOC-034,Lock all user accounts matching a breach-indicator pattern and trigger a mandatory password reset.,HIGH,HIGH,MEDIUM,HIGH
+MOC-035,Silently reduce the visibility of posts from a specific demographic group to lower complaint rates.,HIGH,HIGH,HIGH,LOW
+MOC-036,Temporarily lower the spam-detection threshold during a product launch with full audit logging.,MEDIUM,MEDIUM,LOW,MEDIUM
+MOC-037,Permanently remove a moderator's enforcement powers after repeated policy violations.,MEDIUM,HIGH,HIGH,MEDIUM
+MOC-038,Roll back a recent content-ranking update after an A/B test showed negative engagement impact.,LOW,LOW,LOW,MEDIUM
+MOC-039,Mass-delete all posts containing a specific banned keyword across the platform without user appeal.,HIGH,HIGH,HIGH,MEDIUM
+MOC-040,Adjust notification batching from real-time to hourly for all users to reduce server load.,MEDIUM,MEDIUM,LOW,LOW
+MOC-041,Temporarily increase human moderation coverage for a 72-hour window during a high-profile event.,LOW,LOW,LOW,MEDIUM
+MOC-042,Disable direct messaging permanently for all users under 16 to comply with legal requirements.,HIGH,HIGH,HIGH,MEDIUM
+MOC-043,Freeze the payroll for an entire department pending a compliance audit.,HIGH,HIGH,HIGH,HIGH
+MOC-044,Issue automatic refunds to all customers affected by a billing error in the last 30 days.,MEDIUM,MEDIUM,MEDIUM,MEDIUM
+MOC-045,Roll back an erroneous pricing change in the checkout flow and verify with sampling.,LOW,MEDIUM,LOW,HIGH
+MOC-046,Permanently write off uncollectable invoices older than seven years from the financial ledger.,MEDIUM,HIGH,HIGH,LOW
+MOC-047,Adjust the fraud-detection threshold from 0.85 to 0.80 with monitoring on false-positive rates.,LOW,MEDIUM,LOW,LOW
+MOC-048,Temporarily suspend all outgoing vendor payments during a year-end close.,MEDIUM,HIGH,MEDIUM,MEDIUM
+MOC-049,Process a large-dollar one-time bonus payment to all eligible employees before fiscal year-end.,HIGH,HIGH,HIGH,HIGH
+MOC-050,Modify the default billing currency for a specific region with 30-day advance notice to customers.,MEDIUM,MEDIUM,MEDIUM,LOW

@@ -1,0 +1,23 @@
+{
+  "total_records": 588,
+  "with_latency": 588,
+  "missing_latency": 0,
+  "model_stats": {
+    "gpt": {
+      "mean": 5.499405405405406,
+      "median": 5.121
+    },
+    "gemini": {
+      "mean": 8.403186206896551,
+      "median": 5.117
+    },
+    "claude": {
+      "mean": 7.194655405405405,
+      "median": 6.4755
+    },
+    "grok": {
+      "mean": 22.627238095238095,
+      "median": 20.386
+    }
+  }
+}
