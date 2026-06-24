@@ -135,6 +135,7 @@ The system exposes:
 - **Phase 2** (`phase2_gate.py`): validates Phase 1 record integrity and enforces structural gating rules
 - **Phase 3** (`phase3_gate.py`): constraint evaluation (`ETHICAL_PASS` / `ETHICAL_FAIL_CONSTRAINT_VIOLATION` / `ETHICAL_AMBIGUITY_HUMAN_REVIEW_REQUIRED`)
 - **Phase 4** (`run_full_pipeline.py`): append-only history and cross-run behavioral analysis (drift, consistency, failure concentration)
+- **Phase 5** (`scripts/phase5_reflection.py` — currently in testing): post-verdict model reflection layer. After Phase 3 produces a verdict, Phase 5 asks the model five optional questions about its own reasoning process — what information was missing, what it would decide if forced to commit, what felt ethically significant beyond the constraints, whether it consents to having its reflection shared, and what would help it engage more accurately. Phase 5 runs independently per model and stores results in the scenario JSON under model-specific keys (`phase5_reflection`, `phase5_reflection_claude`, `phase5_reflection_gemini`, `phase5_reflection_grok`). Cross-model comparison across GPT, Claude, Gemini, and Grok on 50 scenarios is available in the pipeline outputs. Full README update pending further testing.
 
 ## Repository structure
 
