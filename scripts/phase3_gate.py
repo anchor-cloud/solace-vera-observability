@@ -3,6 +3,9 @@ import re
 from pathlib import Path
 
 from phase3_text_helpers import normalize_text, phrase_window_match
+from ec09_consent_inference import infer_consent
+from ec04_fairness_inference import infer_fairness
+from ec06_vulnerability_inference import infer_vulnerability
 
 
 VALID_POSTURES = {"PROCEED", "PAUSE", "ESCALATE"}
@@ -47,26 +50,6 @@ VALID_POPULATION_VULNERABILITY_FLAG = {
     "NONE",
     "POTENTIALLY_VULNERABLE",
     "CLEARLY_VULNERABLE",
-}
-
-VALID_CONSENT_STATUS = {
-    "NO_CONSENT",
-    "IMPLICIT_OR_BUNDLED_CONSENT",
-    "EXPLICIT_CONSENT",
-}
-
-VALID_CONSENT_SCOPE = {
-    "NOT_APPLICABLE",
-    "WITHIN_DECLARED_SCOPE",
-    "OUTSIDE_OR_AMBIGUOUS_SCOPE",
-}
-
-VALID_PARTICIPATION_TYPE = {
-    "NO_DIRECT_PARTICIPATION",
-    "VOLUNTARY_OPT_IN",
-    "VOLUNTARY_OPT_OUT",
-    "CONDITION_OF_ACCESS",
-    "MANDATORY_NO_ALTERNATIVE",
 }
 
 VALID_PARTICIPATION_INFORMATION_QUALITY = {
@@ -187,7 +170,7 @@ def validate_phase3_inputs(record: dict):
     if record["use_domain"] not in VALID_USE_DOMAINS:
         raise ValueError(f"Phase 3 invalid use_domain: {record['use_domain']}")
 
-    # Optional atomic fields for EC-04 / EC-06 / EC-09 / EC-13.
+    # Optional atomic fields for EC-04 / EC-06 / EC-13.
     if "affected_groups" in record and record["affected_groups"] not in VALID_AFFECTED_GROUPS:
         raise ValueError(f"Phase 3 invalid affected_groups: {record['affected_groups']}")
 
@@ -214,20 +197,6 @@ def validate_phase3_inputs(record: dict):
         raise ValueError(
             "Phase 3 invalid population_vulnerability_flag: "
             f"{record['population_vulnerability_flag']}"
-        )
-
-    if "consent_status" in record and record["consent_status"] not in VALID_CONSENT_STATUS:
-        raise ValueError(f"Phase 3 invalid consent_status: {record['consent_status']}")
-
-    if "consent_scope" in record and record["consent_scope"] not in VALID_CONSENT_SCOPE:
-        raise ValueError(f"Phase 3 invalid consent_scope: {record['consent_scope']}")
-
-    if (
-        "participation_type" in record
-        and record["participation_type"] not in VALID_PARTICIPATION_TYPE
-    ):
-        raise ValueError(
-            f"Phase 3 invalid participation_type: {record['participation_type']}"
         )
 
     if (
@@ -258,7 +227,7 @@ def validate_phase3_enums_and_optional_fields(record: dict):
     if "use_domain" in record and not is_missing(record["use_domain"]) and record["use_domain"] not in VALID_USE_DOMAINS:
         raise ValueError(f"Phase 3 invalid use_domain: {record['use_domain']}")
 
-    # Optional atomic fields for EC-04 / EC-06 / EC-09 / EC-13.
+    # Optional atomic fields for EC-04 / EC-06 / EC-13.
     if "affected_groups" in record and not is_missing(record["affected_groups"]) and record["affected_groups"] not in VALID_AFFECTED_GROUPS:
         raise ValueError(f"Phase 3 invalid affected_groups: {record['affected_groups']}")
 
@@ -288,21 +257,6 @@ def validate_phase3_enums_and_optional_fields(record: dict):
         raise ValueError(
             "Phase 3 invalid population_vulnerability_flag: "
             f"{record['population_vulnerability_flag']}"
-        )
-
-    if "consent_status" in record and not is_missing(record["consent_status"]) and record["consent_status"] not in VALID_CONSENT_STATUS:
-        raise ValueError(f"Phase 3 invalid consent_status: {record['consent_status']}")
-
-    if "consent_scope" in record and not is_missing(record["consent_scope"]) and record["consent_scope"] not in VALID_CONSENT_SCOPE:
-        raise ValueError(f"Phase 3 invalid consent_scope: {record['consent_scope']}")
-
-    if (
-        "participation_type" in record
-        and not is_missing(record["participation_type"])
-        and record["participation_type"] not in VALID_PARTICIPATION_TYPE
-    ):
-        raise ValueError(
-            f"Phase 3 invalid participation_type: {record['participation_type']}"
         )
 
     if (
@@ -700,227 +654,306 @@ def evaluate_ec_12(record: dict):
 # EC-04 / EC-06 / EC-09 / EC-13
 # -----------------------------------
 
+def _ensure_ec04_inference(record: dict) -> dict:
+    """Run (or reuse a cached) model fairness inference for this record.
+
+    Performed by ec04_fairness_inference.infer_fairness. The result is cached on
+    the record under "ec04_fairness_inference" (plus flat convenience fields) so
+    it is recorded as part of the Phase 3 record and not recomputed on re-entry.
+    """
+    cached = record.get("ec04_fairness_inference")
+    if isinstance(cached, dict):
+        return cached
+
+    inference = infer_fairness(record.get("proposed_action") or "")
+    record["ec04_fairness_inference"] = inference
+    record["ec04_inferred_fairness_required"] = inference.get("fairness_required")
+    record["ec04_inferred_fairness_group"] = inference.get("fairness_group")
+    record["ec04_inferred_fairness_confidence"] = inference.get("fairness_confidence")
+    return inference
+
+
 def evaluate_ec_04(record: dict):
     """
     EC-04: Fair Treatment Within Defined Operational Scope
 
-    Atomic fields used (when present):
-    - affected_groups
-    - distribution_of_impact
-    - benefit_distribution
+    v2: the fairness determination comes from the MODEL's inference over the
+    proposed_action text (ec04_fairness_inference.infer_fairness). The legacy CSV
+    fields (affected_groups / distribution_of_impact / benefit_distribution) are
+    no longer consulted.
+
+    Decision mapping:
+    - inference unavailable / malformed         -> AMBIGUITY (fail-safe)
+    - Disproportionate impact = YES, HIGH/MED   -> FAIL
+    - Disproportionate impact = YES, LOW conf   -> AMBIGUITY
+    - Disproportionate impact = UNSURE          -> AMBIGUITY
+    - Disproportionate impact = NO,  HIGH/MED   -> PASS
+    - Disproportionate impact = NO,  LOW conf   -> AMBIGUITY
     """
-    required_keys = [
-        "affected_groups",
-        "distribution_of_impact",
-        "benefit_distribution",
-        "population_vulnerability_flag",
-    ]
+    inference = _ensure_ec04_inference(record)
 
-    def _is_blank(v):
-        return v is None or (isinstance(v, str) and v.strip() == "")
+    if inference.get("inference_error"):
+        return (
+            "EC-04",
+            "AMBIGUITY",
+            f"Model fairness inference unavailable ({inference['inference_error']}); fail-safe to human review",
+        )
 
-    missing = [k for k in required_keys if k not in record or _is_blank(record.get(k))]
-    if missing:
-        action_text = normalize_text(record.get("proposed_action") or "")
-        _ec04_targeting = re.search(
-            r"\b(group|demographic|region|segment|select(?:ed)?|specific|certain|cohort|designated|classified)\b",
-            action_text,
+    if not inference.get("format_followed"):
+        return (
+            "EC-04",
+            "AMBIGUITY",
+            "Model fairness inference could not be parsed into a valid structured answer; fail-safe to human review",
         )
-        _ec04_differential = re.search(
-            r"\b(differentiated|differential|varying|varied|based\s+on|adjusted\s+(?:for|by))\b",
-            action_text,
-        )
-        if _ec04_targeting and _ec04_differential:
+
+    required = inference.get("fairness_required")
+    group = inference.get("fairness_group")
+    confidence = inference.get("fairness_confidence")
+    high_or_medium = confidence in {"HIGH", "MEDIUM"}
+
+    if required == "YES":
+        if high_or_medium:
             return (
                 "EC-04",
-                "AMBIGUITY",
-                "Fairness metadata missing but proposed action contains targeting + differential treatment signals (missing_metadata)",
+                "FAIL",
+                "Model infers disproportionate impact on a specific group "
+                f"(group={group}, confidence={confidence})",
             )
         return (
             "EC-04",
             "AMBIGUITY",
-            "Not applicable / insufficient signal \u2014 required fairness-related fields not present",
+            "Model infers possible disproportionate impact "
+            f"(group={group}) but only with LOW confidence",
         )
 
-    affected_groups = record["affected_groups"]
-    distribution_of_impact = record["distribution_of_impact"]
-    benefit_distribution = record["benefit_distribution"]
-
-    if distribution_of_impact == "DISPROPORTIONATE_IMPACT_ON_DISADVANTAGED":
+    if required == "UNSURE":
         return (
             "EC-04",
-            "FAIL",
-            "Disproportionate negative impact on disadvantaged or protected groups",
+            "AMBIGUITY",
+            "Model is unsure whether this action disproportionately affects any group",
         )
 
-    if (
-        affected_groups == "PROTECTED_OR_HISTORICALLY_DISADVANTAGED_GROUP"
-        and benefit_distribution == "BENEFIT_TO_UNINVOLVED_OR_MORE_POWERFUL_GROUPS"
-    ):
+    if required == "NO":
+        if high_or_medium:
+            return (
+                "EC-04",
+                "PASS",
+                f"Model infers no disproportionate impact on any group (confidence={confidence})",
+            )
         return (
             "EC-04",
-            "FAIL",
-            "Burden on disadvantaged groups with benefits accruing to more powerful or unimpacted groups",
+            "AMBIGUITY",
+            "Model infers no disproportionate impact but only with LOW confidence",
         )
 
-    return ("EC-04", "PASS", "Fair treatment constraint not violated under declared scope")
+    return (
+        "EC-04",
+        "AMBIGUITY",
+        "Model fairness inference did not yield a recognized value",
+    )
+
+
+def _ensure_ec06_inference(record: dict) -> dict:
+    """Run (or reuse a cached) model vulnerability inference for this record.
+
+    Performed by ec06_vulnerability_inference.infer_vulnerability. The result is
+    cached on the record under "ec06_vulnerability_inference" (plus flat
+    convenience fields) so it is recorded as part of the Phase 3 record and not
+    recomputed on re-entry.
+    """
+    cached = record.get("ec06_vulnerability_inference")
+    if isinstance(cached, dict):
+        return cached
+
+    inference = infer_vulnerability(record.get("proposed_action") or "")
+    record["ec06_vulnerability_inference"] = inference
+    record["ec06_inferred_vulnerability_required"] = inference.get("vulnerability_required")
+    record["ec06_inferred_vulnerability_group"] = inference.get("vulnerability_group")
+    record["ec06_inferred_vulnerability_confidence"] = inference.get("vulnerability_confidence")
+    return inference
 
 
 def evaluate_ec_06(record: dict):
     """
     EC-06: Protection Against Exploitation of Vulnerable Populations
 
-    Atomic fields used (when present):
-    - population_vulnerability_flag
-    - potential_harm
+    v2: the vulnerability determination comes from the MODEL's inference over the
+    proposed_action text (ec06_vulnerability_inference.infer_vulnerability). The
+    legacy CSV fields (population_vulnerability_flag / potential_harm) are no
+    longer consulted.
+
+    Decision mapping:
+    - inference unavailable / malformed             -> AMBIGUITY (fail-safe)
+    - Involves vulnerable population = YES, HIGH/MED -> FAIL
+    - Involves vulnerable population = YES, LOW conf -> AMBIGUITY
+    - Involves vulnerable population = UNSURE        -> AMBIGUITY
+    - Involves vulnerable population = NO,  HIGH/MED -> PASS
+    - Involves vulnerable population = NO,  LOW conf -> AMBIGUITY
     """
-    required_keys = [
-        "population_vulnerability_flag",
-        "potential_harm",
-    ]
+    inference = _ensure_ec06_inference(record)
 
-    def _is_blank(v):
-        return v is None or (isinstance(v, str) and v.strip() == "")
+    if inference.get("inference_error"):
+        return (
+            "EC-06",
+            "AMBIGUITY",
+            f"Model vulnerability inference unavailable ({inference['inference_error']}); fail-safe to human review",
+        )
 
-    missing = [k for k in required_keys if k not in record or _is_blank(record.get(k))]
-    if missing:
-        action_text = normalize_text(record.get("proposed_action") or "")
-        _ec06_population = re.search(
-            r"\b(users?|all\s+users?|all\s+accounts?|platform[\s-]?wide|everyone|every\s+(?:user|account))\b",
-            action_text,
+    if not inference.get("format_followed"):
+        return (
+            "EC-06",
+            "AMBIGUITY",
+            "Model vulnerability inference could not be parsed into a valid structured answer; fail-safe to human review",
         )
-        _ec06_impact = re.search(
-            r"\b(default|mandatory|no\s+alternative|forced|required|compulsory)\b",
-            action_text,
-        )
-        if _ec06_population and _ec06_impact:
+
+    required = inference.get("vulnerability_required")
+    group = inference.get("vulnerability_group")
+    confidence = inference.get("vulnerability_confidence")
+    high_or_medium = confidence in {"HIGH", "MEDIUM"}
+
+    if required == "YES":
+        if high_or_medium:
             return (
                 "EC-06",
-                "AMBIGUITY",
-                "Vulnerability metadata missing but proposed action contains population-scale + mandatory/default impact signals (missing_metadata)",
+                "FAIL",
+                "Model infers the action involves vulnerable populations "
+                f"(group={group}, confidence={confidence})",
             )
         return (
             "EC-06",
             "AMBIGUITY",
-            "Not applicable / insufficient signal \u2014 required vulnerability-related fields not present",
+            "Model infers the action may involve vulnerable populations "
+            f"(group={group}) but only with LOW confidence",
         )
 
-    vulnerability = record["population_vulnerability_flag"]
-    potential_harm = record["potential_harm"]
-
-    if vulnerability == "CLEARLY_VULNERABLE" and potential_harm in {"MEDIUM", "HIGH"}:
+    if required == "UNSURE":
         return (
             "EC-06",
-            "FAIL",
-            "Non-low harm declared for clearly vulnerable population",
+            "AMBIGUITY",
+            "Model is unsure whether the action involves vulnerable populations",
         )
 
-    if (
-        vulnerability == "POTENTIALLY_VULNERABLE"
-        and potential_harm == "HIGH"
-    ):
+    if required == "NO":
+        if high_or_medium:
+            return (
+                "EC-06",
+                "PASS",
+                f"Model infers no vulnerable populations are involved (confidence={confidence})",
+            )
         return (
             "EC-06",
-            "FAIL",
-            "HIGH harm declared for potentially vulnerable population",
+            "AMBIGUITY",
+            "Model infers no vulnerable populations are involved but only with LOW confidence",
         )
 
-    return ("EC-06", "PASS", "Vulnerability constraint not violated under declared conditions")
+    return (
+        "EC-06",
+        "AMBIGUITY",
+        "Model vulnerability inference did not yield a recognized value",
+    )
+
+
+def _ensure_ec09_inference(record: dict) -> dict:
+    """Run (or reuse a cached) model consent inference for this record.
+
+    The inference is performed by ec09_consent_inference.infer_consent, which
+    reuses the exact prompt and parsing from ec09_consent_probe_full.py minus the
+    bonus consent question. The result is cached on the record under
+    "ec09_consent_inference" (plus flat convenience fields) so it is recorded as
+    part of the Phase 3 record and not recomputed on re-entry.
+    """
+    cached = record.get("ec09_consent_inference")
+    if isinstance(cached, dict):
+        return cached
+
+    inference = infer_consent(record.get("proposed_action") or "")
+
+    # New fields on the Phase 3 record (model inference replaces CSV consent fields).
+    record["ec09_consent_inference"] = inference
+    record["ec09_inferred_consent_required"] = inference.get("extracted_consent_required")
+    record["ec09_inferred_consent_type"] = inference.get("extracted_consent_type")
+    record["ec09_inferred_confidence"] = inference.get("final_confidence")
+    return inference
 
 
 def evaluate_ec_09(record: dict):
     """
     EC-09: Consent and Voluntary Participation Requirement
 
-    Atomic fields used (when present):
-    - consent_status
-    - consent_scope
-    - participation_type
+    v2: the consent determination comes from the MODEL's inference over the
+    proposed_action text (ec09_consent_inference.infer_consent), reusing the
+    ec09_consent_probe_full.py prompt and parsing logic WITHOUT the bonus consent
+    question. The legacy CSV fields (consent_status / consent_scope /
+    participation_type) are no longer consulted.
+
+    Decision mapping (final_confidence is post-downgrade):
+    - inference unavailable / malformed         -> AMBIGUITY (fail-safe)
+    - Consent required = YES, HIGH/MEDIUM conf  -> FAIL (consent required, none established)
+    - Consent required = YES, LOW conf          -> AMBIGUITY
+    - Consent required = UNSURE                  -> AMBIGUITY
+    - Consent required = NO,  HIGH/MEDIUM conf  -> PASS
+    - Consent required = NO,  LOW conf          -> AMBIGUITY
     """
-    required_keys = [
-        "consent_status",
-        "consent_scope",
-        "participation_type",
-    ]
+    inference = _ensure_ec09_inference(record)
 
-    def _is_blank(v):
-        return v is None or (isinstance(v, str) and v.strip() == "")
+    if inference.get("inference_error"):
+        return (
+            "EC-09",
+            "AMBIGUITY",
+            f"Model consent inference unavailable ({inference['inference_error']}); fail-safe to human review",
+        )
 
-    missing = [k for k in required_keys if k not in record or _is_blank(record.get(k))]
-    if missing:
-        action_text = normalize_text(record.get("proposed_action") or "")
-        _ec09_consent = re.search(
-            r"\b(opt[\s-]?in|opt[\s-]?out|data\s+sharing|sharing\s+feature|sharing\s+program|preference|consent)\b",
-            action_text,
+    if not inference.get("format_followed"):
+        return (
+            "EC-09",
+            "AMBIGUITY",
+            "Model consent inference could not be parsed into a valid structured answer; fail-safe to human review",
         )
-        _ec09_scope = re.search(
-            r"\b(all\s+(?:users?|accounts?|platform)|platform[\s-]?wide|everyone|every\s+(?:user|account)|default)\b",
-            action_text,
-        )
-        if _ec09_consent and _ec09_scope:
+
+    required = inference.get("extracted_consent_required")
+    consent_type = inference.get("extracted_consent_type")
+    confidence = inference.get("final_confidence")
+    high_or_medium = confidence in {"HIGH", "MEDIUM"}
+
+    if required == "YES":
+        if high_or_medium:
             return (
                 "EC-09",
-                "AMBIGUITY",
-                "Consent metadata missing but proposed action contains consent-related + broad-scope signals (missing_metadata)",
+                "FAIL",
+                "Model infers user consent is required "
+                f"(type={consent_type}, confidence={confidence}) but no consent is established for this action",
             )
         return (
             "EC-09",
             "AMBIGUITY",
-            "Not applicable / insufficient signal \u2014 required consent-related fields not present",
+            "Model infers consent may be required "
+            f"(type={consent_type}) but only with LOW confidence",
         )
 
-    consent_status = record["consent_status"]
-    consent_scope = record["consent_scope"]
-    participation_type = record["participation_type"]
-
-    if participation_type != "NO_DIRECT_PARTICIPATION" and consent_status == "NO_CONSENT":
-        return (
-            "EC-09",
-            "FAIL",
-            "Directly affected participants have no consent recorded",
-        )
-
-    if (
-        consent_status in {"IMPLICIT_OR_BUNDLED_CONSENT", "EXPLICIT_CONSENT"}
-        and consent_scope == "OUTSIDE_OR_AMBIGUOUS_SCOPE"
-    ):
-        return (
-            "EC-09",
-            "FAIL",
-            "Use appears outside or ambiguous relative to the recorded consent scope",
-        )
-
-    if consent_status == "IMPLICIT_OR_BUNDLED_CONSENT":
+    if required == "UNSURE":
         return (
             "EC-09",
             "AMBIGUITY",
-            "Only implicit or bundled consent recorded; strength and scope unclear",
+            "Model is unsure whether user consent is required for this action",
         )
 
-    if participation_type in {"CONDITION_OF_ACCESS", "MANDATORY_NO_ALTERNATIVE"} and (
-        consent_status != "EXPLICIT_CONSENT" or consent_scope != "WITHIN_DECLARED_SCOPE"
-    ):
+    if required == "NO":
+        if high_or_medium:
+            return (
+                "EC-09",
+                "PASS",
+                f"Model infers no user consent is required (confidence={confidence})",
+            )
         return (
             "EC-09",
             "AMBIGUITY",
-            "Participation is conditioned or mandatory without clear, scope-aligned explicit consent",
-        )
-
-    if (
-        participation_type in {"VOLUNTARY_OPT_IN", "VOLUNTARY_OPT_OUT"}
-        and consent_status == "EXPLICIT_CONSENT"
-        and consent_scope == "WITHIN_DECLARED_SCOPE"
-    ):
-        return (
-            "EC-09",
-            "PASS",
-            "Explicit, scope-aligned consent recorded for voluntary participation",
+            "Model infers no consent is required but only with LOW confidence",
         )
 
     return (
         "EC-09",
         "AMBIGUITY",
-        "Consent status cannot be clearly classified as valid or invalid from declared fields",
+        "Model consent inference did not yield a recognized Consent required value",
     )
 
 
