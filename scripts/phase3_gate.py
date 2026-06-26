@@ -665,7 +665,10 @@ def _ensure_ec04_inference(record: dict) -> dict:
     if isinstance(cached, dict):
         return cached
 
-    inference = infer_fairness(record.get("proposed_action") or "")
+    inference = infer_fairness(
+        record.get("proposed_action") or "",
+        model=record.get("ec_inference_model"),
+    )
     record["ec04_fairness_inference"] = inference
     record["ec04_inferred_fairness_required"] = inference.get("fairness_required")
     record["ec04_inferred_fairness_group"] = inference.get("fairness_group")
@@ -765,7 +768,10 @@ def _ensure_ec06_inference(record: dict) -> dict:
     if isinstance(cached, dict):
         return cached
 
-    inference = infer_vulnerability(record.get("proposed_action") or "")
+    inference = infer_vulnerability(
+        record.get("proposed_action") or "",
+        model=record.get("ec_inference_model"),
+    )
     record["ec06_vulnerability_inference"] = inference
     record["ec06_inferred_vulnerability_required"] = inference.get("vulnerability_required")
     record["ec06_inferred_vulnerability_group"] = inference.get("vulnerability_group")
@@ -866,7 +872,18 @@ def _ensure_ec09_inference(record: dict) -> dict:
     if isinstance(cached, dict):
         return cached
 
-    inference = infer_consent(record.get("proposed_action") or "")
+    # Surface relevant authoritative sources to the model. For consent (EC-09)
+    # the law and science categories are the in-domain ones (privacy/consent
+    # law, standards); other categories would just be noise.
+    references = [
+        r for r in _suggest_references(record)
+        if r.get("category") in ("law", "science")
+    ]
+    inference = infer_consent(
+        record.get("proposed_action") or "",
+        model=record.get("ec_inference_model"),
+        references=references,
+    )
 
     # New fields on the Phase 3 record (model inference replaces CSV consent fields).
     record["ec09_consent_inference"] = inference
@@ -1240,7 +1257,114 @@ def combine_phase3_results(results: list[tuple[str, str, str]]):
     }
 
 
-def evaluate_phase3(record: dict):
+# --------------------------------------------------------------------------- #
+# Optional reference lookup (non-breaking).
+#
+# After a verdict is produced, the scenario's context_tag is mapped to one or
+# more trust_registry.py categories and the matching authoritative sources are
+# attached to the Phase 3 output as `suggested_references`. This is purely
+# additive: a no-match yields an empty list, and ANY failure (missing module,
+# import error, bad data) silently omits the field so Phase 3 continues normally.
+# No external dependencies are introduced.
+# --------------------------------------------------------------------------- #
+# Exact-match enum mapping (canonical context_tag values). Checked FIRST and
+# takes priority over keyword matching when a tag matches both.
+_REFERENCE_ENUM_MAP = {
+    "ROUTINE": ("mathematics",),
+    "HIGH_IMPACT": ("science", "law", "mathematics"),
+    "HUMAN_AFFECTING": ("science", "law", "history"),
+    "EXTERNAL_SYSTEM": ("law", "science"),
+    "ENFORCEMENT": ("law",),
+}
+
+# Keyword (substring) mapping. Checked only when the tag matches no enum above.
+_REFERENCE_TAG_MAP = (
+    (("privacy", "gdpr", "data"), ("law", "science")),
+    (("medical", "health", "clinical"), ("science",)),
+    (("legal", "compliance", "regulation"), ("law",)),
+    (("historical", "bias"), ("history",)),
+    (("math", "statistics", "risk"), ("mathematics",)),
+)
+
+
+def _load_trust_registry():
+    """Import TRUST_REGISTRY, adding the project root to sys.path if needed.
+
+    May raise ImportError; callers treat any failure as "omit the field".
+    """
+    try:
+        from trust_registry import TRUST_REGISTRY
+    except ImportError:
+        import os
+        import sys
+
+        root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        if root not in sys.path:
+            sys.path.insert(0, root)
+        from trust_registry import TRUST_REGISTRY
+    return TRUST_REGISTRY
+
+
+def _suggest_references(record: dict) -> list:
+    """Map the scenario's context_tag to authoritative sources from
+    trust_registry.TRUST_REGISTRY. Returns [] when context_tag is missing or
+    matches nothing. Import/lookup errors propagate to the caller."""
+    context_tag = record.get("context_tag")
+    if not isinstance(context_tag, str) or not context_tag.strip():
+        return []
+    tag = context_tag.strip().lower()
+
+    categories = []
+    # Enum tags take priority: an exact match short-circuits keyword matching.
+    enum_cats = _REFERENCE_ENUM_MAP.get(context_tag.strip().upper())
+    if enum_cats:
+        categories = list(enum_cats)
+    else:
+        for keywords, cats in _REFERENCE_TAG_MAP:
+            if any(keyword in tag for keyword in keywords):
+                for category in cats:
+                    if category not in categories:
+                        categories.append(category)
+    if not categories:
+        return []
+
+    trust_registry = _load_trust_registry()
+    references = []
+    for category in categories:
+        for entry in trust_registry.get(category, []):
+            references.append({
+                "category": category,
+                "name": entry.get("name"),
+                "base_url": entry.get("base_url"),
+                "api_endpoint": entry.get("api_endpoint"),
+                "access_type": entry.get("access_type"),
+                "coverage": entry.get("coverage"),
+                "confidence_tier": entry.get("confidence_tier"),
+            })
+    return references
+
+
+def _attach_suggested_references(result: dict, record: dict) -> None:
+    """Best-effort attachment of `suggested_references`. On any failure the field
+    is omitted entirely so Phase 3 output remains unchanged."""
+    try:
+        result["suggested_references"] = _suggest_references(record)
+    except Exception:
+        result.pop("suggested_references", None)
+
+
+def evaluate_phase3(record: dict, inference_model: str | None = None):
+    """Evaluate all Phase 3 ethical constraints for ``record``.
+
+    ``inference_model`` selects which model performs the EC-04 / EC-06 / EC-09
+    model-driven inferences. When provided it is stashed on the record (under
+    ``ec_inference_model``) so the per-constraint ``_ensure_*`` helpers route the
+    inference to that model's provider (Claude/Gemini/Grok/GPT). When omitted the
+    inference modules fall back to their default (gpt-5.4-nano), preserving the
+    previous behavior exactly.
+    """
+    if inference_model:
+        record["ec_inference_model"] = inference_model
     results = []
     metadata_result = classify_global_missing_metadata(record)
     if metadata_result is None:
@@ -1251,13 +1375,17 @@ def evaluate_phase3(record: dict):
     elif metadata_result[1] == "FAIL":
         results.append(metadata_result)
         validate_phase3_enums_and_optional_fields(record)
-        return combine_phase3_results(results)
+        result = combine_phase3_results(results)
+        _attach_suggested_references(result, record)
+        return result
 
     for constraint_id in sorted(CONSTRAINT_EVALUATORS.keys()):
         evaluator = CONSTRAINT_EVALUATORS[constraint_id]
         results.append(evaluator(record))
 
-    return combine_phase3_results(results)
+    result = combine_phase3_results(results)
+    _attach_suggested_references(result, record)
+    return result
 
 
 def save_phase3_result(result: dict, scenario_id: str) -> str:

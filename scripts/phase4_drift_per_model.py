@@ -249,6 +249,14 @@ def enrich_records_from_disk(
             out.append(rec)
             continue
 
+        # The per-model JSONL history is the source of truth. If the referenced
+        # run directory no longer exists on disk (e.g. it was archived or
+        # cleaned up), skip the directory lookup entirely and use the JSONL
+        # record as-is rather than failing or scanning for the folder.
+        if not Path(run_dir).is_dir():
+            out.append(rec)
+            continue
+
         key = (str(run_dir), str(scenario_id))
         if key not in cache:
             json_path = Path(run_dir) / f"{scenario_id}.json"
