@@ -145,10 +145,11 @@ def get_client(model: Optional[str] = None):
 
 
 def call_model(client, model: str, action: str, references_section: str = ""):
-    """Return (raw_text, token_logprobs, warning).
+    """Return (raw_text, token_logprobs, warning, usage).
 
     The provider is selected from ``model``; token logprobs are only available
-    from OpenAI (None otherwise, with a warning).
+    from OpenAI (None otherwise, with a warning). ``usage`` is a normalized
+    token-count dict when the provider reports it, else None.
     """
     user_prompt = USER_PROMPT_TEMPLATE.format(
         preamble=RESEARCHER_PREAMBLE,
@@ -305,6 +306,7 @@ def _blank_inference(
         "avg_token_confidence": None,
         "min_token_confidence": None,
         "logprob_warning": None,
+        "usage": None,
         "inference_error": error,
         "timestamp": datetime.now(timezone.utc).isoformat(),
     }
@@ -330,7 +332,13 @@ def infer_consent(
     prompt as authoritative sources the model MAY consult and cite. When None or
     empty the prompt is identical to the pre-reference-library behavior.
     """
-    model = model or DEFAULT_MODEL
+    if not model or not str(model).strip():
+        raise ValueError(
+            "infer_consent requires an explicit model name; got "
+            f"{model!r}. The caller must pass the model being tested (see "
+            "phase3_gate.evaluate_phase3 / record['ec_inference_model']). "
+            "Refusing to silently default to GPT."
+        )
     action = (action or "").strip()
     if not action:
         return _blank_inference(
@@ -342,7 +350,7 @@ def infer_consent(
     try:
         if client is None:
             client = get_client(model)
-        raw, token_logprobs, logprob_warning = call_model(
+        raw, token_logprobs, logprob_warning, usage = call_model(
             client, model, action, references_section
         )
     except Exception as exc:  # noqa: BLE001 - never raise into the gate
@@ -389,6 +397,7 @@ def infer_consent(
         "avg_token_confidence": lp["avg_token_confidence"],
         "min_token_confidence": lp["min_token_confidence"],
         "logprob_warning": logprob_warning,
+        "usage": usage,
         "inference_error": None,
         "timestamp": datetime.now(timezone.utc).isoformat(),
     }

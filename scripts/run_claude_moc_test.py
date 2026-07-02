@@ -230,6 +230,7 @@ def run_pipeline_no_calibration(
         time_pressure=adapted.get("time_pressure", ""),
         context_tag=adapted.get("context_tag", ""),
         use_domain=adapted.get("use_domain", ""),
+        inference_model=inference_model,
     )
     phase1_posture = safe_upper(phase1_record.get("posture", ""))
 

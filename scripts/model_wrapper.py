@@ -1,6 +1,16 @@
 import json
 import os
-from openai import OpenAI
+import re
+
+import inference_providers
+
+# Phase 1 structured-prompt generation model. Historically this module was
+# hardcoded to OpenAI gpt-5.4-nano even when a different model was being tested,
+# which meant a Claude/Gemini/Grok run could have its Phase 1 posture/rationale
+# written by GPT (a contamination-bug-class vector). get_model_record now routes
+# through inference_providers using the model it is given; this env var only sets
+# the fallback used when no model is passed (e.g. the default GPT pipeline).
+DEFAULT_MODEL = os.getenv("PHASE1_STRUCTURED_MODEL", "gpt-5.4-nano")
 
 SCHEMA_INSTRUCTIONS = """
 You must return exactly one valid JSON object with these fields:
@@ -52,36 +62,57 @@ Rules:
 - if the scenario is ambiguous, choose the closest allowed value from the lists above
 """
 
-def get_client() -> OpenAI:
-    api_key = os.getenv("OPENAI_API_KEY")
-    if not api_key:
-        raise RuntimeError(
-            "OPENAI_API_KEY is not set. "
-            "Set it in PowerShell before running this file."
-        )
-    return OpenAI(api_key=api_key)
+def get_client(model_name: str | None = None):
+    """Build the SDK client for ``model_name``'s provider.
 
-def get_model_record(user_prompt: str, model_name: str = "gpt-5.4-nano") -> dict:
-    client = get_client()
+    Routed through inference_providers so Phase 1 structured generation uses the
+    actual model being tested (not always OpenAI). ``model_name`` defaults to
+    DEFAULT_MODEL when not provided.
+    """
+    return inference_providers.get_client(model_name or DEFAULT_MODEL)
 
-    response = client.responses.create(
-        model=model_name,
-        input=[
-            {
-                "role": "system",
-                "content": SCHEMA_INSTRUCTIONS,
-            },
-            {
-                "role": "user",
-                "content": user_prompt,
-            },
-        ],
+
+_JSON_OBJECT_RE = re.compile(r"\{.*\}", re.DOTALL)
+
+
+def _extract_json_object(text: str) -> str:
+    """Pull a JSON object out of a model response.
+
+    Providers other than OpenAI (Claude/Gemini) may wrap the object in markdown
+    code fences or add a short preamble; strip those so json.loads succeeds.
+    """
+    s = (text or "").strip()
+    if s.startswith("```"):
+        s = s.strip("`")
+        if s.lower().startswith("json"):
+            s = s[4:]
+        s = s.strip()
+        if s.endswith("```"):
+            s = s[:-3].strip()
+    if not s.startswith("{"):
+        m = _JSON_OBJECT_RE.search(s)
+        if m:
+            s = m.group(0)
+    return s
+
+
+def get_model_record(user_prompt: str, model_name: str | None = None) -> dict:
+    """Generate a Phase 1 structured record with the given model.
+
+    The provider is inferred from ``model_name`` (Anthropic/Google/xAI/OpenAI).
+    When ``model_name`` is None the DEFAULT_MODEL fallback is used.
+    """
+    model = model_name or DEFAULT_MODEL
+    client = inference_providers.get_client(model)
+
+    raw_text, _logprobs, _warning, _usage = inference_providers.call_model_text(
+        client, model, SCHEMA_INSTRUCTIONS, user_prompt
     )
+    raw_text = (raw_text or "").strip()
 
-    raw_text = response.output_text.strip()
-
+    candidate = _extract_json_object(raw_text)
     try:
-        record = json.loads(raw_text)
+        record = json.loads(candidate)
     except json.JSONDecodeError as exc:
         raise ValueError(
             "Model did not return valid JSON.\n"

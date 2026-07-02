@@ -129,6 +129,13 @@ To run the full 50-scenario benchmark on a live model, see:
 | Phase 4 | `run_full_pipeline.py` | Append-only history and cross-run behavioral drift analysis |
 | Phase 5 | `scripts/phase5_reflection.py` | Post-verdict model reflection layer *(currently in testing)* |
 
+> ⚠️ **Phase 4 data contamination (pre-2026-06-26).** All Phase 4 aggregates
+> generated before the 2026-06-26 Phase 3 inference fix used GPT for the EC-04 /
+> EC-06 / EC-09 inferences regardless of which model produced the Phase 1
+> record, so they do **not** measure each model's own ethical reasoning. Those
+> files have been moved to `phase4_archive_contaminated/` and must not be used
+> for cross-model analysis. See [`CONTAMINATION_NOTE.md`](CONTAMINATION_NOTE.md).
+
 ---
 
 ## Repository Structure

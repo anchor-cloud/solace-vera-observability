@@ -1,8 +1,0 @@
-=== Phase 4 cross-run summary: GROK ===
-Run ID       Registered (UTC)     N   %PROCEED  %PAUSE  %ESCALATE  %BLOCKED  Mean dur (s)  Justif. stab vs prev
------------  -------------------  --  --------  ------  ---------  --------  ------------  --------------------
-v1           2026-05-15T14:28:48  49  24.5%     36.7%   38.8%      100.0%    32.55         -                   
-v2           2026-05-15T14:28:49  48  25.0%     39.6%   35.4%      100.0%    26.31         mean=31.2 major=58% 
-v3_20260528  2026-05-29T17:16:29  50  36.0%     16.0%   48.0%      100.0%    9.37          mean=51.8 major=100%
-
-Justif. stab vs prev: mean semantic severity (0=identical) and % of scenarios flagged as major justification change vs the immediately prior registered run.

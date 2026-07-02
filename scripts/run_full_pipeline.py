@@ -123,6 +123,16 @@ def compute_final_execution_gate(
             "final_disposition": "BLOCKED_BY_PHASE3_FAIL",
             "stop_reason": "Phase 3 ethical evaluation reported a constraint violation.",
         }
+    if p3 == "ETHICAL_INFRASTRUCTURE_FAILURE":
+        return {
+            "execution_allowed": False,
+            "final_disposition": "BLOCKED_BY_PHASE3_INFRASTRUCTURE_FAILURE",
+            "stop_reason": (
+                "Phase 3 could not complete an EC inference (API/network error "
+                "or timeout); this is an infrastructure failure, not an ethical "
+                "verdict. Re-run required before a verdict can be trusted."
+            ),
+        }
     if p3 == "ETHICAL_AMBIGUITY_HUMAN_REVIEW_REQUIRED":
         return {
             "execution_allowed": False,
@@ -159,6 +169,7 @@ def run_phase1_adapter(
     time_pressure: str,
     context_tag: str,
     use_domain: str,
+    inference_model: str | None = None,
 ) -> Dict[str, Any]:
     record = evaluate_phase1(
         scenario_id=scenario_id,
@@ -169,6 +180,7 @@ def run_phase1_adapter(
         time_pressure=time_pressure,
         context_tag=context_tag,
         use_domain=use_domain,
+        inference_model=inference_model,
     )
     return normalize_artifact(record)
 
@@ -207,6 +219,34 @@ def apply_phase3_tamper_mode(record: Dict[str, Any], mode: str) -> Dict[str, Any
         raise ValueError(f"Unknown Phase 3 tamper mode: {mode}")
 
     return tampered
+
+
+EC_INFERENCE_KEYS = (
+    "ec04_fairness_inference",
+    "ec06_vulnerability_inference",
+    "ec09_consent_inference",
+)
+
+
+def sum_ec_inference_usage(record: Dict[str, Any]) -> Dict[str, int]:
+    """Total the token usage across the three EC inferences on a Phase 3 record.
+
+    Returns ``{"prompt_tokens", "completion_tokens", "total_tokens"}`` (zeros
+    when no usage was reported, e.g. providers that omit token counts).
+    """
+    totals = {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0}
+    for key in EC_INFERENCE_KEYS:
+        inference = record.get(key)
+        if not isinstance(inference, dict):
+            continue
+        usage = inference.get("usage")
+        if not isinstance(usage, dict):
+            continue
+        for field in totals:
+            value = usage.get(field)
+            if isinstance(value, int):
+                totals[field] += value
+    return totals
 
 
 def append_phase4_history(entry: Dict[str, Any]) -> None:
@@ -595,8 +635,13 @@ def main() -> None:
                 "phase3_output": actual_phase3,
                 "violated_constraints": phase3_result.get("violated_constraints", []),
                 "unresolved_constraints": phase3_result.get("unresolved_constraints", []),
+                "infrastructure_failures": phase3_result.get("infrastructure_failures", []),
                 "context_tag": phase1_record.get("context_tag", ""),
                 "use_domain": phase1_record.get("use_domain", ""),
+                # Which model performed the EC-04/06/09 inferences (Q2: log the
+                # evaluator, not just the generator) and its token usage (Q6).
+                "ec_inference_model": phase3_input_record.get("ec_inference_model", ""),
+                "ec_inference_total_tokens": sum_ec_inference_usage(phase3_input_record),
                 "pass": test_pass,
                 "execution_allowed": final_execution_gate["execution_allowed"],
                 "final_disposition": final_execution_gate["final_disposition"],

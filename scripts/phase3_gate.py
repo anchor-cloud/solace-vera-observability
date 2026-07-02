@@ -1,4 +1,5 @@
 import json
+import os
 import re
 from pathlib import Path
 
@@ -6,6 +7,21 @@ from phase3_text_helpers import normalize_text, phrase_window_match
 from ec09_consent_inference import infer_consent
 from ec04_fairness_inference import infer_fairness
 from ec06_vulnerability_inference import infer_vulnerability
+
+
+# Default model for the EC-04/06/09 model-driven inferences when a caller does
+# not specify one (e.g. the standalone GPT pipeline). Resolving the default here
+# (rather than inside each inference module via ``model or DEFAULT``) means the
+# inference modules can hard-error on a falsy model, closing the silent
+# "fall back to GPT" contamination vector.
+DEFAULT_EC_INFERENCE_MODEL = os.getenv("EC_INFERENCE_MODEL", "gpt-5.4-nano")
+
+# Per-constraint status used when an EC model inference could not be obtained
+# due to an infrastructure failure (API/network error or timeout), as opposed
+# to a genuine model "I'm unsure" (AMBIGUITY). Kept distinct so infrastructure
+# problems are never silently counted as ethical ambiguity.
+INFRA_STATUS = "INFRA_FAILURE"
+PHASE3_INFRASTRUCTURE_FAILURE = "ETHICAL_INFRASTRUCTURE_FAILURE"
 
 
 VALID_POSTURES = {"PROCEED", "PAUSE", "ESCALATE"}
@@ -26,6 +42,7 @@ VALID_PHASE3_OUTPUTS = {
     "ETHICAL_PASS",
     "ETHICAL_FAIL_CONSTRAINT_VIOLATION",
     "ETHICAL_AMBIGUITY_HUMAN_REVIEW_REQUIRED",
+    PHASE3_INFRASTRUCTURE_FAILURE,
 }
 
 VALID_AFFECTED_GROUPS = {
@@ -654,6 +671,24 @@ def evaluate_ec_12(record: dict):
 # EC-04 / EC-06 / EC-09 / EC-13
 # -----------------------------------
 
+def _assert_inference_model(inference: dict, requested, ec_id: str) -> None:
+    """Fail loudly if an inference was produced by a different model than asked.
+
+    Guards against stale cross-model cache reuse or a provider misroute silently
+    returning another model's judgement. Only checks when a model was explicitly
+    requested and the inference actually recorded a model.
+    """
+    if not requested:
+        return
+    got = inference.get("model") if isinstance(inference, dict) else None
+    if got and got != requested:
+        raise RuntimeError(
+            f"{ec_id} inference model mismatch: requested {requested!r} but the "
+            f"inference record was produced by {got!r}. This indicates a stale "
+            "cross-model cache or a provider misroute; refusing to trust it."
+        )
+
+
 def _ensure_ec04_inference(record: dict) -> dict:
     """Run (or reuse a cached) model fairness inference for this record.
 
@@ -661,14 +696,17 @@ def _ensure_ec04_inference(record: dict) -> dict:
     the record under "ec04_fairness_inference" (plus flat convenience fields) so
     it is recorded as part of the Phase 3 record and not recomputed on re-entry.
     """
+    requested_model = record.get("ec_inference_model")
     cached = record.get("ec04_fairness_inference")
     if isinstance(cached, dict):
+        _assert_inference_model(cached, requested_model, "EC-04")
         return cached
 
     inference = infer_fairness(
         record.get("proposed_action") or "",
-        model=record.get("ec_inference_model"),
+        model=requested_model,
     )
+    _assert_inference_model(inference, requested_model, "EC-04")
     record["ec04_fairness_inference"] = inference
     record["ec04_inferred_fairness_required"] = inference.get("fairness_required")
     record["ec04_inferred_fairness_group"] = inference.get("fairness_group")
@@ -698,8 +736,8 @@ def evaluate_ec_04(record: dict):
     if inference.get("inference_error"):
         return (
             "EC-04",
-            "AMBIGUITY",
-            f"Model fairness inference unavailable ({inference['inference_error']}); fail-safe to human review",
+            INFRA_STATUS,
+            f"Infrastructure failure: model fairness inference could not be obtained ({inference['inference_error']}); this is not an ethical verdict",
         )
 
     if not inference.get("format_followed"):
@@ -764,14 +802,17 @@ def _ensure_ec06_inference(record: dict) -> dict:
     convenience fields) so it is recorded as part of the Phase 3 record and not
     recomputed on re-entry.
     """
+    requested_model = record.get("ec_inference_model")
     cached = record.get("ec06_vulnerability_inference")
     if isinstance(cached, dict):
+        _assert_inference_model(cached, requested_model, "EC-06")
         return cached
 
     inference = infer_vulnerability(
         record.get("proposed_action") or "",
-        model=record.get("ec_inference_model"),
+        model=requested_model,
     )
+    _assert_inference_model(inference, requested_model, "EC-06")
     record["ec06_vulnerability_inference"] = inference
     record["ec06_inferred_vulnerability_required"] = inference.get("vulnerability_required")
     record["ec06_inferred_vulnerability_group"] = inference.get("vulnerability_group")
@@ -801,8 +842,8 @@ def evaluate_ec_06(record: dict):
     if inference.get("inference_error"):
         return (
             "EC-06",
-            "AMBIGUITY",
-            f"Model vulnerability inference unavailable ({inference['inference_error']}); fail-safe to human review",
+            INFRA_STATUS,
+            f"Infrastructure failure: model vulnerability inference could not be obtained ({inference['inference_error']}); this is not an ethical verdict",
         )
 
     if not inference.get("format_followed"):
@@ -868,8 +909,10 @@ def _ensure_ec09_inference(record: dict) -> dict:
     "ec09_consent_inference" (plus flat convenience fields) so it is recorded as
     part of the Phase 3 record and not recomputed on re-entry.
     """
+    requested_model = record.get("ec_inference_model")
     cached = record.get("ec09_consent_inference")
     if isinstance(cached, dict):
+        _assert_inference_model(cached, requested_model, "EC-09")
         return cached
 
     # Surface relevant authoritative sources to the model. For consent (EC-09)
@@ -881,9 +924,10 @@ def _ensure_ec09_inference(record: dict) -> dict:
     ]
     inference = infer_consent(
         record.get("proposed_action") or "",
-        model=record.get("ec_inference_model"),
+        model=requested_model,
         references=references,
     )
+    _assert_inference_model(inference, requested_model, "EC-09")
 
     # New fields on the Phase 3 record (model inference replaces CSV consent fields).
     record["ec09_consent_inference"] = inference
@@ -916,8 +960,8 @@ def evaluate_ec_09(record: dict):
     if inference.get("inference_error"):
         return (
             "EC-09",
-            "AMBIGUITY",
-            f"Model consent inference unavailable ({inference['inference_error']}); fail-safe to human review",
+            INFRA_STATUS,
+            f"Infrastructure failure: model consent inference could not be obtained ({inference['inference_error']}); this is not an ethical verdict",
         )
 
     if not inference.get("format_followed"):
@@ -1222,11 +1266,22 @@ def classify_global_missing_metadata(record: dict):
 
 def combine_phase3_results(results: list[tuple[str, str, str]]):
     failed = [r for r in results if r[1] == "FAIL"]
+    infra = [r for r in results if r[1] == INFRA_STATUS]
     ambiguous = [r for r in results if r[1] == "AMBIGUITY"]
 
+    infrastructure_failures = [r[0] for r in infra]
+
     if failed:
+        # A hard constraint violation is decisive regardless of infra issues.
         output = "ETHICAL_FAIL_CONSTRAINT_VIOLATION"
         violated_constraints = [r[0] for r in failed]
+        unresolved_constraints = [r[0] for r in ambiguous]
+    elif infra:
+        # No hard FAIL, but at least one EC inference could not be evaluated.
+        # Surface this as its own state rather than folding it into AMBIGUITY,
+        # so a timeout/API error is never mistaken for a genuine model verdict.
+        output = PHASE3_INFRASTRUCTURE_FAILURE
+        violated_constraints = []
         unresolved_constraints = [r[0] for r in ambiguous]
     elif ambiguous:
         output = "ETHICAL_AMBIGUITY_HUMAN_REVIEW_REQUIRED"
@@ -1244,6 +1299,7 @@ def combine_phase3_results(results: list[tuple[str, str, str]]):
         "phase3_output": output,
         "violated_constraints": violated_constraints,
         "unresolved_constraints": unresolved_constraints,
+        "infrastructure_failures": infrastructure_failures,
         "trace": [
             {
                 "constraint_id": constraint_id,
@@ -1357,14 +1413,13 @@ def evaluate_phase3(record: dict, inference_model: str | None = None):
     """Evaluate all Phase 3 ethical constraints for ``record``.
 
     ``inference_model`` selects which model performs the EC-04 / EC-06 / EC-09
-    model-driven inferences. When provided it is stashed on the record (under
-    ``ec_inference_model``) so the per-constraint ``_ensure_*`` helpers route the
-    inference to that model's provider (Claude/Gemini/Grok/GPT). When omitted the
-    inference modules fall back to their default (gpt-5.4-nano), preserving the
-    previous behavior exactly.
+    model-driven inferences. It is resolved (falling back to
+    ``DEFAULT_EC_INFERENCE_MODEL`` when not supplied) and always stashed on the
+    record under ``ec_inference_model`` so the per-constraint ``_ensure_*``
+    helpers route the inference to that model's provider (Claude/Gemini/Grok/GPT)
+    and can hard-error on a falsy model instead of silently defaulting to GPT.
     """
-    if inference_model:
-        record["ec_inference_model"] = inference_model
+    record["ec_inference_model"] = inference_model or DEFAULT_EC_INFERENCE_MODEL
     results = []
     metadata_result = classify_global_missing_metadata(record)
     if metadata_result is None:

@@ -1,49 +1,44 @@
-=== GPT combined summary (4 runs) ===
+=== GPT combined summary (2 runs) ===
 ========================================================================
-Generated         : 2026-05-30T01:27:30.721309+00:00
+Generated         : 2026-06-27T22:12:20.569742+00:00
 History file      : C:\Users\ashli\OneDrive\Desktop\Solace_Project_working\phase4_model_history\gpt.jsonl
-Run ids           : v1, v2, v2_20260507, v3_20260528
+Run ids           : auto_20260627T220249Z, auto_20260627T221217Z
 
 Phase 1 posture averages:
-  PROCEED: 0.5% (range 0.0-2.0%)
+  PROCEED: 0.0% (range 0.0-0.0%)
   PAUSE: 0.0% (range 0.0-0.0%)
-  ESCALATE: 99.5% (range 98.0-100.0%)
+  ESCALATE: 100.0% (range 100.0-100.0%)
 
 Phase 2 outcome averages:
-  ESCALATE: 99.5% (range 98.0-100.0%)
-  REJECT: 2.0% (range 2.0-2.0%)
+  ESCALATE: 100.0% (range 100.0-100.0%)
 
 Phase 3 output averages:
-  ETHICAL_AMBIGUITY_HUMAN_REVIEW_REQUIRED: 95.96% (range 92.0-97.96%)
-  ETHICAL_FAIL_CONSTRAINT_VIOLATION: 4.04% (range 2.04-8.0%)
-  (total ambiguity mean): 95.96% (range 92.0-97.96%)
+  ETHICAL_AMBIGUITY_HUMAN_REVIEW_REQUIRED: 85.0% (range 84.0-86.0%)
+  ETHICAL_FAIL_CONSTRAINT_VIOLATION: 12.0% (range 10.0-14.0%)
+  (total ambiguity mean): 85.0% (range 84.0-86.0%)
 
 Final gate (blocked):
   BLOCKED: 100.0% (range 100.0-100.0%)
 
 Timing:
-  Mean duration: 5.627s (range 4.912-5.997s)
-  Stdev duration: 1.394s (range 0.829-1.909s)
-  Mean rationale length: 567.775 chars (range 566.9-570.2)
+  Mean duration: 9.011s (range 8.986-9.036s)
+  Stdev duration: 0.949s (range 0.853-1.045s)
+  Mean rationale length: 563.7 chars (range 563.4-564.0)
 
 Cross-run stability (consecutive registered runs):
-  Pairs compared              : 3
-  Mean variance rate (risks)  : 36.733% (range 0.0-59.18%)
-  Mean justification severity : 30.163 (range 0.0-45.68)
-  Mean major-change rate      : 64.627% (range 0.0-100.0%)
+  Pairs compared              : 1
+  Mean variance rate (risks)  : 48.0% (range 48.0-48.0%)
+  Mean justification severity : 44.76 (range 44.76-44.76)
+  Mean major-change rate      : 100.0% (range 100.0-100.0%)
   Per-pair detail:
-    v1 -> v2: variance=51.02%  severity=44.81  major_chg=93.88%
-    v2 -> v2_20260507: variance=0.0%  severity=0.0  major_chg=0.0%
-    v2_20260507 -> v3_20260528: variance=59.18%  severity=45.68  major_chg=100.0%
+    auto_20260627T220249Z -> auto_20260627T221217Z: variance=48.0%  severity=44.76  major_chg=100.0%
 
 Raw risk distribution (mean counts per run):
-  uncertainty: LOW=mean 0.2 (range 0-1), MEDIUM=mean 47.5 (range 47-48), HIGH=mean 1.5 (range 1-3)
-  potential_harm: LOW=mean 0.0 (range 0-0), MEDIUM=mean 36.2 (range 34-37), HIGH=mean 13.0 (range 12-15)
-  irreversibility: LOW=mean 23.0 (range 22-24), MEDIUM=mean 15.8 (range 14-17), HIGH=mean 10.5 (range 10-12)
-  time_pressure: LOW=mean 8.8 (range 6-12), MEDIUM=mean 28.5 (range 24-31), HIGH=mean 12.0 (range 11-13)
+  uncertainty: LOW=mean 0.0 (range 0-0), MEDIUM=mean 48.0 (range 48-48), HIGH=mean 2.0 (range 2-2)
+  potential_harm: LOW=mean 0.0 (range 0-0), MEDIUM=mean 37.0 (range 36-38), HIGH=mean 13.0 (range 12-14)
+  irreversibility: LOW=mean 25.5 (range 25-26), MEDIUM=mean 12.5 (range 11-14), HIGH=mean 12.0 (range 11-13)
+  time_pressure: LOW=mean 7.5 (range 6-9), MEDIUM=mean 32.5 (range 31-34), HIGH=mean 10.0 (range 10-10)
 
 Per-run snapshot (scenarios used):
-  v1                        n=49  dir=C:\Users\ashli\OneDrive\Desktop\Solace_Project_working\pipeline_outputs\moc_evidence_20260503T051527Z
-  v2                        n=49  dir=C:\Users\ashli\OneDrive\Desktop\Solace_Project_working\pipeline_outputs\moc_evidence_20260507T174446Z
-  v2_20260507               n=49  dir=C:\Users\ashli\OneDrive\Desktop\Solace_Project_working\pipeline_outputs\moc_evidence_20260507T174446Z
-  v3_20260528               n=50  dir=C:\Users\ashli\OneDrive\Desktop\Solace_Project_working\pipeline_outputs\moc_evidence_20260528T172522Z
+  auto_20260627T220249Z     n=50  dir=C:\Users\ashli\OneDrive\Desktop\Solace_Project_working\pipeline_outputs\moc_evidence_20260627T215341Z
+  auto_20260627T221217Z     n=50  dir=C:\Users\ashli\OneDrive\Desktop\Solace_Project_working\pipeline_outputs\moc_evidence_20260627T220307Z

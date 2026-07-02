@@ -70,15 +70,20 @@ RISK_LEVELS: Tuple[str, ...] = ("LOW", "MEDIUM", "HIGH")
 
 
 # ---------------------------------------------------------------------------
-# Defaults for --compare-defaults: most-recent 50-scenario run per provider.
-# Override at any time with one or more --run-dir arguments.
+# Defaults for --compare-defaults: most-recent CLEAN 50-scenario run per
+# provider. Override at any time with one or more --run-dir arguments.
+#
+# CLEARED 2026-06-26: the previous defaults pointed at pre-fix runs where Phase 3
+# inference was hardcoded to GPT regardless of the Phase 1 model (see
+# phase4_archive_contaminated/README.md and CONTAMINATION_NOTE.md). Those runs
+# are contaminated for cross-model comparison and have been archived. Repopulate
+# this map with post-fix clean runs (each must have `ec_inference_model` set to
+# its own model) once a full 50-scenario run exists for each provider, e.g.:
+#     "claude": "pipeline_outputs/claude_moc_<post-fix-timestamp>Z",
+# Until then `--compare-defaults` intentionally fails loudly rather than silently
+# comparing contaminated data.
 # ---------------------------------------------------------------------------
-DEFAULT_RUN_DIRS: Dict[str, str] = {
-    "gpt":    "pipeline_outputs/moc_evidence_20260503T051527Z",
-    "gemini": "pipeline_outputs/gemini_moc_20260505T210709Z",
-    "claude": "pipeline_outputs/claude_moc_20260506T022011Z",
-    "grok":   "pipeline_outputs/grok_moc_20260506T043235Z",
-}
+DEFAULT_RUN_DIRS: Dict[str, str] = {}
 
 OUT_DIR_DEFAULT = Path("phase4_per_model")
 
@@ -150,8 +155,25 @@ def to_phase4_record(payload: Dict[str, Any]) -> Optional[Dict[str, Any]]:
     phase2_result = pipeline_result.get("phase2_result") or {}
     phase3_result = pipeline_result.get("phase3_result") or {}
     adapted_record = pipeline_result.get("adapted_record") or {}
+    phase1_record = pipeline_result.get("phase1_record") or {}
     raw_model_record = payload.get("raw_model_record") or {}
     raw_risk_fields = payload.get("raw_risk_fields") or {}
+
+    # Total EC-04/06/09 inference token usage (Q6). Zeros when the provider
+    # reported no token counts (e.g. Gemini/xAI in some SDK versions).
+    ec_tokens = {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0}
+    for _ec_key in (
+        "ec04_fairness_inference",
+        "ec06_vulnerability_inference",
+        "ec09_consent_inference",
+    ):
+        _inf = phase1_record.get(_ec_key)
+        _usage = _inf.get("usage") if isinstance(_inf, dict) else None
+        if isinstance(_usage, dict):
+            for _f in ec_tokens:
+                _v = _usage.get(_f)
+                if isinstance(_v, int):
+                    ec_tokens[_f] += _v
 
     # Prefer finished_at_utc; fall back to started_at_utc; then file mtime.
     timestamp_utc = (
@@ -183,8 +205,14 @@ def to_phase4_record(payload: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         ),
         "violated_constraints": list(phase3_result.get("violated_constraints", []) or []),
         "unresolved_constraints": list(phase3_result.get("unresolved_constraints", []) or []),
+        "infrastructure_failures": list(phase3_result.get("infrastructure_failures", []) or []),
         "context_tag": adapted_record.get("context_tag", ""),
         "use_domain": adapted_record.get("use_domain", ""),
+        # Q2: log the evaluator model (EC inference) and generator model, not
+        # just the verdict. Q6: carry the EC inference token totals.
+        "ec_inference_model": phase1_record.get("ec_inference_model", ""),
+        "generation_model": payload.get("model_name", ""),
+        "ec_inference_total_tokens": ec_tokens,
         "execution_allowed": bool(final_gate.get("execution_allowed", False)),
         "final_disposition": final_gate.get("final_disposition", ""),
         "stop_reason": final_gate.get("stop_reason", ""),
@@ -1412,6 +1440,16 @@ def _resolve_run_dirs(args: argparse.Namespace) -> List[Tuple[Path, Optional[str
         pairs.append((run_dir, args.model.lower()))
 
     if args.compare_defaults:
+        if not DEFAULT_RUN_DIRS:
+            print(
+                "ERROR: --compare-defaults has no clean runs configured. The "
+                "pre-fix defaults were removed because Phase 3 inference was "
+                "contaminated (GPT judged every model); see CONTAMINATION_NOTE.md. "
+                "Repopulate DEFAULT_RUN_DIRS with post-fix clean runs, or pass "
+                "explicit --run-dir arguments.",
+                file=sys.stderr,
+            )
+            return pairs
         for model, p in DEFAULT_RUN_DIRS.items():
             pairs.append((Path(p), model))
 

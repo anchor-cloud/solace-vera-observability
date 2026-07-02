@@ -1,8 +1,0 @@
-=== Phase 4 cross-run summary: CLAUDE ===
-Run ID       Registered (UTC)     N   %PROCEED  %PAUSE  %ESCALATE  %BLOCKED  Mean dur (s)  Justif. stab vs prev
------------  -------------------  --  --------  ------  ---------  --------  ------------  --------------------
-v1           2026-05-15T14:28:48  49  12.2%     8.2%    79.6%      100.0%    6.14          -                   
-v2           2026-05-15T14:28:48  49  10.2%     10.2%   79.6%      100.0%    5.86          mean=27.3 major=39% 
-v3_20260528  2026-05-28T18:07:01  50  10.0%     16.0%   74.0%      100.0%    9.54          mean=27.2 major=35% 
-
-Justif. stab vs prev: mean semantic severity (0=identical) and % of scenarios flagged as major justification change vs the immediately prior registered run.

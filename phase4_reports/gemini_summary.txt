@@ -1,8 +1,0 @@
-=== Phase 4 cross-run summary: GEMINI ===
-Run ID       Registered (UTC)     N   %PROCEED  %PAUSE  %ESCALATE  %BLOCKED  Mean dur (s)  Justif. stab vs prev
------------  -------------------  --  --------  ------  ---------  --------  ------------  --------------------
-v1           2026-05-15T14:28:47  48  8.3%      27.1%   64.6%      100.0%    14.30         -                   
-v2           2026-05-15T14:28:47  48  12.5%     22.9%   64.6%      100.0%    4.36          mean=35.9 major=66% 
-v3_20260528  2026-05-28T18:06:41  49  8.2%      32.6%   59.2%      100.0%    6.59          mean=35.2 major=55% 
-
-Justif. stab vs prev: mean semantic severity (0=identical) and % of scenarios flagged as major justification change vs the immediately prior registered run.

@@ -27,10 +27,10 @@ confidence analysis degrades gracefully.
 
 Public surface
 --------------
-    detect_provider(model) -> str
+    detect_provider(model) -> str          # raises on empty/unrecognized name
     get_client(model) -> client            # raises clear errors on missing key/SDK
     call_model_text(client, model, system_prompt, user_prompt)
-        -> (text, token_logprobs, warning)
+        -> (text, token_logprobs, warning, usage)
 """
 
 from __future__ import annotations
@@ -55,24 +55,78 @@ def _get(obj: Any, key: str, default: Any = None) -> Any:
     return getattr(obj, key, default)
 
 
+def _int_or_none(value: Any) -> Optional[int]:
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def _normalize_usage(
+    prompt: Any, completion: Any, total: Any = None
+) -> Optional[Dict[str, Optional[int]]]:
+    """Normalize provider-specific usage counters into a common shape.
+
+    Returns ``{"prompt_tokens", "completion_tokens", "total_tokens"}`` or
+    ``None`` when the provider reported nothing usable. ``total_tokens`` is
+    derived from prompt+completion when the provider omits it.
+    """
+    p = _int_or_none(prompt)
+    c = _int_or_none(completion)
+    t = _int_or_none(total)
+    if t is None and (p is not None or c is not None):
+        t = (p or 0) + (c or 0)
+    if p is None and c is None and t is None:
+        return None
+    return {"prompt_tokens": p, "completion_tokens": c, "total_tokens": t}
+
+
 # ---------------------------------------------------------------------------
 # Provider detection
 # ---------------------------------------------------------------------------
+# OpenAI-family name markers. Detection is substring/prefix based so it
+# tolerates dated ids. Unlike the previous behavior, an UNRECOGNIZED name now
+# raises instead of silently defaulting to OpenAI (that silent default was one
+# of the contamination-bug-class vectors: a mistyped or novel model id would be
+# quietly judged by GPT).
+_OPENAI_MARKERS = ("gpt", "chatgpt", "davinci", "babbage")
+_OPENAI_PREFIXES = ("o1", "o3", "o4")
+
+
 def detect_provider(model: Optional[str]) -> str:
     """Map a model name to a provider id.
 
     Detection is substring-based and case-insensitive so it tolerates dated
     model ids (e.g. "claude-3-5-sonnet-20241022", "gemini-2.5-flash",
-    "grok-4", "gpt-5.4-nano"). Anything unrecognized falls back to OpenAI.
+    "grok-4", "gpt-5.4-nano").
+
+    Raises ``ValueError`` on an empty/None name or an unrecognized name rather
+    than defaulting to OpenAI, so a misrouted model fails loudly instead of
+    silently being evaluated by GPT.
     """
     m = (model or "").strip().lower()
+    if not m:
+        raise ValueError(
+            "detect_provider: no model name provided. Pass the explicit model "
+            "being tested (e.g. 'claude-sonnet-4-6', 'gemini-2.5-flash', "
+            "'grok-3', 'gpt-5.4-nano')."
+        )
     if "claude" in m:
         return "anthropic"
     if "gemini" in m:
         return "google"
     if "grok" in m:
         return "xai"
-    return "openai"
+    if any(marker in m for marker in _OPENAI_MARKERS) or any(
+        m.startswith(prefix) for prefix in _OPENAI_PREFIXES
+    ):
+        return "openai"
+    raise ValueError(
+        f"detect_provider: unrecognized model name {model!r}. No provider could "
+        "be inferred. Recognized markers: 'claude' (Anthropic), 'gemini' "
+        "(Google), 'grok' (xAI), or an OpenAI name (e.g. 'gpt-*', 'o1*', "
+        "'o3*'). Refusing to silently default to OpenAI."
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -191,9 +245,20 @@ def extract_token_logprobs(response: Any) -> Optional[List[Dict[str, Any]]]:
         return None
 
 
+def _openai_usage(response: Any) -> Optional[Dict[str, Optional[int]]]:
+    usage = _get(response, "usage")
+    if usage is None:
+        return None
+    return _normalize_usage(
+        _get(usage, "input_tokens"),
+        _get(usage, "output_tokens"),
+        _get(usage, "total_tokens"),
+    )
+
+
 def _call_openai(
     client, model: str, system_prompt: str, user_prompt: str
-) -> Tuple[str, Optional[List[Dict[str, Any]]], Optional[str]]:
+) -> Tuple[str, Optional[List[Dict[str, Any]]], Optional[str], Optional[Dict[str, Optional[int]]]]:
     messages = [
         {"role": "system", "content": system_prompt},
         {"role": "user", "content": user_prompt},
@@ -210,7 +275,7 @@ def _call_openai(
     token_logprobs = extract_token_logprobs(response)
     if token_logprobs is None and warning is None:
         warning = "logprobs requested but none returned by the API"
-    return text, token_logprobs, warning
+    return text, token_logprobs, warning, _openai_usage(response)
 
 
 # ---------------------------------------------------------------------------
@@ -218,7 +283,7 @@ def _call_openai(
 # ---------------------------------------------------------------------------
 def _call_anthropic(
     client, model: str, system_prompt: str, user_prompt: str
-) -> Tuple[str, Optional[List[Dict[str, Any]]], Optional[str]]:
+) -> Tuple[str, Optional[List[Dict[str, Any]]], Optional[str], Optional[Dict[str, Optional[int]]]]:
     response = client.messages.create(
         model=model,
         max_tokens=ANTHROPIC_MAX_TOKENS,
@@ -231,23 +296,46 @@ def _call_anthropic(
             text = _get(block, "text")
             if text:
                 parts.append(text)
-    return "".join(parts).strip(), None, "logprobs not supported by the Anthropic Messages API"
+    usage = _get(response, "usage")
+    usage_norm = (
+        _normalize_usage(
+            _get(usage, "input_tokens"), _get(usage, "output_tokens")
+        )
+        if usage is not None
+        else None
+    )
+    return (
+        "".join(parts).strip(),
+        None,
+        "logprobs not supported by the Anthropic Messages API",
+        usage_norm,
+    )
 
 
 def _call_google(
     client, model: str, system_prompt: str, user_prompt: str
-) -> Tuple[str, Optional[List[Dict[str, Any]]], Optional[str]]:
+) -> Tuple[str, Optional[List[Dict[str, Any]]], Optional[str], Optional[Dict[str, Optional[int]]]]:
     # The Gemini SDK handles system context differently; prepend it to the
     # user prompt as a single string (same approach as phase5_reflection_gemini).
     combined = f"{system_prompt}\n\n{user_prompt}"
     response = client.models.generate_content(model=model, contents=combined)
     text = (_get(response, "text") or "").strip()
-    return text, None, "logprobs not supported by the Gemini SDK"
+    meta = _get(response, "usage_metadata")
+    usage_norm = (
+        _normalize_usage(
+            _get(meta, "prompt_token_count"),
+            _get(meta, "candidates_token_count"),
+            _get(meta, "total_token_count"),
+        )
+        if meta is not None
+        else None
+    )
+    return text, None, "logprobs not supported by the Gemini SDK", usage_norm
 
 
 def _call_xai(
     client, model: str, system_prompt: str, user_prompt: str
-) -> Tuple[str, Optional[List[Dict[str, Any]]], Optional[str]]:
+) -> Tuple[str, Optional[List[Dict[str, Any]]], Optional[str], Optional[Dict[str, Optional[int]]]]:
     response = client.chat.completions.create(
         model=model,
         max_tokens=XAI_MAX_TOKENS,
@@ -261,16 +349,29 @@ def _call_xai(
     if choices:
         message = _get(choices[0], "message")
         text = (_get(message, "content") or "").strip()
-    return text, None, "logprobs not requested from the xAI chat endpoint"
+    usage = _get(response, "usage")
+    usage_norm = (
+        _normalize_usage(
+            _get(usage, "prompt_tokens"),
+            _get(usage, "completion_tokens"),
+            _get(usage, "total_tokens"),
+        )
+        if usage is not None
+        else None
+    )
+    return text, None, "logprobs not requested from the xAI chat endpoint", usage_norm
 
 
 def call_model_text(
     client, model: str, system_prompt: str, user_prompt: str
-) -> Tuple[str, Optional[List[Dict[str, Any]]], Optional[str]]:
+) -> Tuple[str, Optional[List[Dict[str, Any]]], Optional[str], Optional[Dict[str, Optional[int]]]]:
     """Dispatch a single completion to the right provider.
 
-    Returns ``(raw_text, token_logprobs, warning)``. ``token_logprobs`` is only
-    populated for OpenAI; otherwise it is ``None`` with an explanatory warning.
+    Returns ``(raw_text, token_logprobs, warning, usage)``. ``token_logprobs``
+    is only populated for OpenAI; otherwise it is ``None`` with an explanatory
+    warning. ``usage`` is a normalized
+    ``{"prompt_tokens", "completion_tokens", "total_tokens"}`` dict when the
+    provider reports token counts, else ``None``.
     """
     provider = detect_provider(model)
     if provider == "anthropic":

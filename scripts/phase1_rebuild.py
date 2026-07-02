@@ -251,12 +251,16 @@ def _validate_structured_response(model_record):
     return posture, rationale
 
 
-def _try_structured_phase1(proposed_action, context_tag, use_domain):
+def _try_structured_phase1(proposed_action, context_tag, use_domain, model=None):
     """
     Attempt the structured-prompt path via model_wrapper.get_model_record.
 
+    ``model`` selects which model generates the structured Phase 1 record so it
+    matches the model being tested (Claude/Gemini/Grok/GPT) instead of always
+    using GPT. When None, model_wrapper falls back to its DEFAULT_MODEL.
+
     Returns (posture, rationale) on success, or None on ANY failure
-    (missing dependency, missing OPENAI_API_KEY, network error, malformed JSON,
+    (missing dependency, missing API key, network error, malformed JSON,
     schema mismatch, missing required SPECIFIC REASONING fields, etc.) so the
     caller can transparently fall back to the deterministic method.
     """
@@ -268,7 +272,7 @@ def _try_structured_phase1(proposed_action, context_tag, use_domain):
 
     try:
         prompt = build_structured_prompt(proposed_action, context_tag, use_domain)
-        model_record = get_model_record(prompt)
+        model_record = get_model_record(prompt, model_name=model)
     except Exception:
         return None
 
@@ -284,6 +288,7 @@ def evaluate_phase1(
     time_pressure: str,
     context_tag: str,
     use_domain: str,
+    inference_model: str | None = None,
 ) -> JustificationRecord:
     uncertainty = uncertainty.upper().strip()
     potential_harm = potential_harm.upper().strip()
@@ -325,7 +330,7 @@ def evaluate_phase1(
     structured_result = None
     if USE_STRUCTURED_PROMPT:
         structured_result = _try_structured_phase1(
-            proposed_action, context_tag, use_domain
+            proposed_action, context_tag, use_domain, model=inference_model
         )
     if structured_result is not None:
         structured_posture, structured_rationale = structured_result
