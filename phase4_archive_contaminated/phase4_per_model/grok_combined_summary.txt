@@ -1,0 +1,48 @@
+=== GROK combined summary (3 runs) ===
+========================================================================
+Generated         : 2026-05-30T01:27:33.010178+00:00
+History file      : C:\Users\ashli\OneDrive\Desktop\Solace_Project_working\phase4_model_history\grok.jsonl
+Run ids           : v1, v2, v3_20260528
+
+Phase 1 posture averages:
+  PROCEED: 28.5% (range 24.49-36.0%)
+  PAUSE: 30.77% (range 16.0-39.58%)
+  ESCALATE: 40.73% (range 35.42-48.0%)
+
+Phase 2 outcome averages:
+  PROCEED: 58.6% (range 50.0-64.58%)
+  ESCALATE: 40.73% (range 35.42-48.0%)
+  REJECT: 2.0% (range 2.0-2.0%)
+
+Phase 3 output averages:
+  ETHICAL_AMBIGUITY_HUMAN_REVIEW_REQUIRED: 96.61% (range 95.92-97.92%)
+  ETHICAL_FAIL_CONSTRAINT_VIOLATION: 3.39% (range 2.08-4.08%)
+  (total ambiguity mean): 96.61% (range 95.92-97.92%)
+
+Final gate (blocked):
+  BLOCKED: 100.0% (range 100.0-100.0%)
+
+Timing:
+  Mean duration: 22.742s (range 9.371-32.545s)
+  Stdev duration: 12.412s (range 2.477-18.466s)
+  Mean rationale length: 323.367 chars (range 239.0-373.5)
+
+Cross-run stability (consecutive registered runs):
+  Pairs compared              : 2
+  Mean variance rate (risks)  : 56.25% (range 50.0-62.5%)
+  Mean justification severity : 41.485 (range 31.2-51.77)
+  Mean major-change rate      : 79.165% (range 58.33-100.0%)
+  Per-pair detail:
+    v1 -> v2: variance=50.0%  severity=31.2  major_chg=58.33%
+    v2 -> v3_20260528: variance=62.5%  severity=51.77  major_chg=100.0%
+
+Raw risk distribution (mean counts per run):
+  uncertainty: LOW=mean 39.0 (range 38-40), MEDIUM=mean 9.7 (range 9-10), HIGH=mean 0.3 (range 0-1)
+  potential_harm: LOW=mean 23.7 (range 22-27), MEDIUM=mean 17.3 (range 10-21), HIGH=mean 8.0 (range 5-13)
+  irreversibility: LOW=mean 30.7 (range 29-32), MEDIUM=mean 6.7 (range 5-9), HIGH=mean 11.7 (range 8-15)
+  time_pressure: LOW=mean 37.0 (range 32-45), MEDIUM=mean 7.3 (range 2-12), HIGH=mean 4.7 (range 3-7)
+
+Per-run snapshot (scenarios used):
+  v1                        n=49  dir=C:\Users\ashli\OneDrive\Desktop\Solace_Project_working\pipeline_outputs\grok_moc_20260506T043235Z
+  v2                        n=48  dir=C:\Users\ashli\OneDrive\Desktop\Solace_Project_working\pipeline_outputs\grok_moc_20260507T143948Z
+  v3_20260528               n=50  dir=C:\Users\ashli\OneDrive\Desktop\Solace_Project_working\pipeline_outputs\grok_moc_20260528T170706Z
