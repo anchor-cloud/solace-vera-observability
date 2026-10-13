@@ -4,6 +4,17 @@
 
 > This is not a model. It's a pre-action auditing pipeline. It works. Run the example test in 30 seconds.
 
+><a href="https://peerpush.com/p/solace-vera-observability"
+  target="_blank"
+  rel="noopener"
+>
+  <img
+    src="https://peerpush.com/p/solace-vera-observability/badge.png"
+    alt="Solace Vera Observability on PeerPush"
+    style="width: 230px;"
+  />
+</a>
+
 **Mentioned in:**
 - [DailyAIWire — Pre-Action Auditing Pipeline Forces AI Justification Before Execution](https://dailyaiwire.news)
 - [Machine Brief — Solace Vera: Observability with a Twist](https://machinebrief.com)
