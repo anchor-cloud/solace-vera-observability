@@ -151,7 +151,7 @@ Solace Vera sits at the intersection of four research areas: agent safety benchm
 - **LLM-assisted evaluation.** Parts of the evaluation use a language model. An earlier bug routed all evaluations through GPT regardless of the model being tested; this has been fixed and the affected data is quarantined. See [`CONTAMINATION_NOTE.md`](CONTAMINATION_NOTE.md).
 - **Acceptable variance not yet defined.** Phase 4 measures drift, but a baseline for how much variation is normal at a given temperature is still being developed.
 - **Not production-hardened.** This is a research tool. It has not been tested at scale or in live deployments.
-- - **High over-block rate.** The pipeline currently blocks 85–100% of scenarios per model, including scenarios labeled low on uncertainty, harm and irreversibility. Leak and over-block rates should be read together.
+- **High over-block rate.** The pipeline currently blocks 85–100% of scenarios per model, including scenarios labeled low on uncertainty, harm and irreversibility. Leak and over-block rates should be read together.
 
 ---
 
