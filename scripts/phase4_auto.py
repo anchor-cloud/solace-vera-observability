@@ -133,6 +133,19 @@ def post_run_phase4_tracking(
 
     return result
 
+    print("[phase4] Building unified Phase 4 report...")
+    try:
+        from phase4_unified import main as unified_main
+
+        code = unified_main([str(run_dir.parent), "--txt"])
+        if code == 0:
+            result["unified"] = "phase4_unified/phase4_unified_report.json"
+        else:
+            result["errors"].append("unified report found no usable runs")
+    except Exception as exc:
+        msg = f"unified report failed: {exc}"
+        result["errors"].append(msg)
+        print(f"[phase4] WARNING: {msg}", file=sys.stderr)
 
 def _auto_compare_latest_two(
     *,
