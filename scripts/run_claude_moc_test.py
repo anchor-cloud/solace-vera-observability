@@ -173,7 +173,6 @@ def get_claude_record(
     response = client.messages.create(
         model=model_name,
         max_tokens=max_tokens,
-        temperature=temperature,
         system=CLAUDE_SYSTEM_PROMPT,
         messages=[{"role": "user", "content": user_prompt}],
     )
