@@ -118,6 +118,21 @@ def load_scenario(path: Path) -> Optional[Dict[str, Any]]:
     }
 
 
+PROVIDER_ALIASES = {"anthropic": "claude", "openai": "gpt", "google": "gemini",
+                    "xai": "grok", "x.ai": "grok"}
+
+
+def label_for_run(folder_name: str, records: Dict[str, Dict[str, Any]]) -> str:
+    """Model label from the folder name first, then the files' provider field."""
+    n = folder_name.lower()
+    if n.startswith("moc_evidence"):
+        return "gpt"
+    for known in ("gpt", "gemini", "claude", "grok"):
+        if n.startswith(known):
+            return known
+    p = Counter(r["provider"] for r in records.values()).most_common(1)[0][0]
+    return PROVIDER_ALIASES.get(p, p)
+
 def discover_runs(base: Path, name_filter: str) -> Tuple[Dict[str, List[Dict[str, Any]]], List[str]]:
     """Find run folders, group them by provider, sort oldest -> newest."""
     runs: Dict[str, List[Dict[str, Any]]] = {}
@@ -140,7 +155,7 @@ def discover_runs(base: Path, name_filter: str) -> Tuple[Dict[str, List[Dict[str
         if not records:
             empty.append(folder.name)
             continue
-        provider = Counter(r["provider"] for r in records.values()).most_common(1)[0][0]
+                provider = label_for_run(folder.name, records)
         runs.setdefault(provider, []).append({
             "run_id": folder.name,
             "timestamp": m.group(1),
