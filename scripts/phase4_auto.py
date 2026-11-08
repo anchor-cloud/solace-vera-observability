@@ -131,8 +131,6 @@ def post_run_phase4_tracking(
         result["errors"].append(msg)
         print(f"[phase4] WARNING: {msg}", file=sys.stderr)
 
-    return result
-
     print("[phase4] Building unified Phase 4 report...")
     try:
         from phase4_unified import main as unified_main
@@ -146,6 +144,8 @@ def post_run_phase4_tracking(
         msg = f"unified report failed: {exc}"
         result["errors"].append(msg)
         print(f"[phase4] WARNING: {msg}", file=sys.stderr)
+
+    return result
 
 def _auto_compare_latest_two(
     *,
