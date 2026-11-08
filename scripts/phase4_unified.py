@@ -155,7 +155,7 @@ def discover_runs(base: Path, name_filter: str) -> Tuple[Dict[str, List[Dict[str
         if not records:
             empty.append(folder.name)
             continue
-                provider = label_for_run(folder.name, records)
+        provider = label_for_run(folder.name, records)
         runs.setdefault(provider, []).append({
             "run_id": folder.name,
             "timestamp": m.group(1),
