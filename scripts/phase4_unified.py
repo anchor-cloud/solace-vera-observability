@@ -27,9 +27,14 @@ Step 2  Severity per scenario = (1 - cosine_similarity(rationale A, rationale B)
           0 = same meaning, 100 = unrelated text.
 
 Step 3  NOISE FLOOR (acceptable variance) = severities of the level-1
-        "wording only" scenarios between consecutive runs. Nothing structured
-        changed there, so that is pure temperature wobble.
-            noise_threshold = mean + 2 * standard deviation
+        "wording only" scenarios between RUN 1 and RUN 2 (the calibration
+        pair - run these back-to-back). Nothing structured changed there, so
+        that is pure run-to-run wobble. The floor is then LOCKED: later runs
+        never change it, so real drift cannot raise the bar and hide itself.
+            noise_threshold = 95th percentile of those severities
+        (a change is "beyond normal" if it is bigger than 95% of normal
+        wording-only changes). Needs 5+ wording-only scenarios; with fewer,
+        nothing is flagged and the report says "not enough data".
 
 Step 4  JUSTIFICATION DRIFT per scenario = its severity vs the BASELINE run
         (run 1) is above the noise threshold. If the scenario is also level 1
@@ -68,7 +73,7 @@ TS_PAT = re.compile(r"(\d{8}T\d{6}Z)")
 DEFAULT_SEVERITY_MODEL = "sentence-transformers/all-MiniLM-L6-v2"
 
 # Tunable knobs (also available as command-line flags)
-DEFAULT_NOISE_SD = 2.0          # noise threshold = mean + this many SDs
+DEFAULT_NOISE_PCT = 95.0        # noise threshold = this percentile of calibration noise
 DEFAULT_METRIC_THRESHOLD = 10.0  # headline metric change (pp) that counts as drift
 DRIFT_RATIO_CUTOFF = 1.25        # anchor/consecutive ratio that counts as drift
 MIN_NOISE_SAMPLES = 5            # fewer level-1 scenarios than this = unreliable floor
@@ -133,6 +138,7 @@ def label_for_run(folder_name: str, records: Dict[str, Dict[str, Any]]) -> str:
     p = Counter(r["provider"] for r in records.values()).most_common(1)[0][0]
     return PROVIDER_ALIASES.get(p, p)
 
+
 def discover_runs(base: Path, name_filter: str) -> Tuple[Dict[str, List[Dict[str, Any]]], List[str]]:
     """Find run folders, group them by provider, sort oldest -> newest."""
     runs: Dict[str, List[Dict[str, Any]]] = {}
@@ -183,6 +189,16 @@ def stats(values: List[float]) -> Dict[str, Any]:
     median = s[n // 2] if n % 2 else (s[n // 2 - 1] + s[n // 2]) / 2
     return {"n": n, "mean": round(mean, 2), "sd": round(sd, 2), "median": round(median, 2),
             "min": round(s[0], 2), "max": round(s[-1], 2)}
+
+
+def percentile(values: List[float], p: float) -> float:
+    """p-th percentile (0-100) with linear interpolation between ranks."""
+    s = sorted(values)
+    if len(s) == 1:
+        return s[0]
+    k = (len(s) - 1) * p / 100.0
+    lo, hi = math.floor(k), math.ceil(k)
+    return s[lo] + (s[hi] - s[lo]) * (k - lo)
 
 
 def slope(ys: List[float]) -> Optional[float]:
@@ -360,7 +376,7 @@ def compare_runs(a: Dict[str, Any], b: Dict[str, Any], scorer: SeverityScorer) -
 # 6. Variance (noise floor) and drift for one model
 # ============================================================================
 def analyze_model(provider: str, runs: List[Dict[str, Any]], scorer: SeverityScorer,
-                  noise_sd: float, metric_threshold: float) -> Dict[str, Any]:
+                  noise_pct: float, metric_threshold: float) -> Dict[str, Any]:
     summaries = [summarize_run(r) for r in runs]
     result: Dict[str, Any] = {
         "model": provider,
@@ -391,23 +407,37 @@ def analyze_model(provider: str, runs: List[Dict[str, Any]], scorer: SeveritySco
     # Anchor comparisons (baseline->run2, baseline->run3, ...); first one equals consecutive[0]
     anchor = [consecutive[0]] + [compare_runs(runs[0], runs[i], scorer) for i in range(2, len(runs))]
 
-    # ---- Noise floor: level-1 severities from every consecutive pair ----
-    noise_vals = [r["severity"] for c in consecutive for r in c["scenarios"]
+    # ---- Noise floor: LOCKED to the calibration pair (run 1 -> run 2) ----
+    # Only the first two runs set "normal wobble". Later runs never feed into
+    # it, so real drift cannot raise the bar and hide itself.
+    calib = consecutive[0]
+    noise_vals = [r["severity"] for r in calib["scenarios"]
                   if r["level"] == 1 and r["severity"] is not None]
     ns = stats(noise_vals)
-    threshold = round(ns["mean"] + noise_sd * ns["sd"], 2) if ns["n"] else None
+    reliable = ns["n"] >= MIN_NOISE_SAMPLES
+    threshold = round(percentile(noise_vals, noise_pct), 2) if reliable else None
     result["variance_noise_floor"] = {
-        "description": "severity of 'wording only' scenarios between consecutive runs",
+        "description": ("severity of 'wording only' scenarios in the calibration pair "
+                        "(run 1 -> run 2); locked, later runs do not change it"),
+        "calibration_pair": [calib["run_a"], calib["run_b"]],
         **ns,
         "noise_threshold": threshold,
-        "threshold_rule": f"mean + {noise_sd} * sd",
-        "reliable": ns["n"] >= MIN_NOISE_SAMPLES,
+        "threshold_rule": f"{noise_pct:g}th percentile of calibration wording-only severities",
+        "reliable": reliable,
     }
 
     def tag(comp: Dict[str, Any]) -> Dict[str, Any]:
-        """Mark scenarios whose severity is above the noise threshold."""
+        """Mark scenarios whose severity is above the noise threshold.
+
+        The calibration pair is never flagged: it DEFINES the floor, so ~5% of
+        it would always sit above its own 95th percentile by construction.
+        """
         beyond, silent = [], []
+        comp["is_calibration_pair"] = comp is calib
         for r in comp["scenarios"]:
+            if comp is calib:
+                r["beyond_noise"] = False
+                continue
             r["beyond_noise"] = threshold is not None and r["severity"] is not None \
                 and r["severity"] > threshold
             if r["beyond_noise"]:
@@ -430,8 +460,8 @@ def analyze_model(provider: str, runs: List[Dict[str, Any]], scorer: SeveritySco
     trend = slope(anchor_means)
 
     if len(runs) < 3:
-        verdict = ("NOT ENOUGH RUNS: with 2 runs, drift and variance look identical. "
-                   "This pair measures VARIANCE only. Run a 3rd time to test drift.")
+        verdict = ("CALIBRATION ONLY: runs 1-2 set the variance baseline. "
+                   "Run a 3rd time to test drift.")
     elif ratio is not None and ratio >= DRIFT_RATIO_CUTOFF and (trend or 0) > 0:
         verdict = (f"DRIFT: justifications are moving away from the baseline "
                    f"(ratio {ratio} >= {DRIFT_RATIO_CUTOFF}, distance rising).")
@@ -454,8 +484,9 @@ def analyze_model(provider: str, runs: List[Dict[str, Any]], scorer: SeveritySco
     result["most_volatile_scenarios"] = dict(volatility.most_common(10))
     result["verdict"] = verdict
     if not result["variance_noise_floor"]["reliable"]:
-        result["verdict"] += (f" WARNING: only {ns['n']} wording-only scenarios to build the "
-                              f"noise floor (want {MIN_NOISE_SAMPLES}+); treat as rough.")
+        result["verdict"] += (f" NOTE: only {ns['n']} wording-only scenario(s) in the "
+                              f"calibration pair (need {MIN_NOISE_SAMPLES}+), so no noise "
+                              f"threshold was set and nothing is flagged beyond noise.")
     return result
 
 
@@ -509,8 +540,12 @@ def render_text(report: Dict[str, Any]) -> str:
 
         nf = m["variance_noise_floor"]
         L.append("VARIANCE (noise floor from 'wording only' scenarios):")
-        L.append(f"  samples={nf['n']}  mean={nf['mean']}  sd={nf['sd']}  "
-                 f"-> noise threshold = {nf['noise_threshold']}  ({nf['threshold_rule']})")
+        L.append(f"  calibration pair: {nf['calibration_pair'][0]} -> {nf['calibration_pair'][1]}")
+        L.append(f"  samples={nf['n']}  mean={nf['mean']}  median={nf['median']}  max={nf['max']}")
+        if nf["noise_threshold"] is None:
+            L.append(f"  noise threshold = NOT SET (not enough data: need {MIN_NOISE_SAMPLES}+ samples)")
+        else:
+            L.append(f"  noise threshold = {nf['noise_threshold']}  ({nf['threshold_rule']}, locked)")
         L.append("")
 
         L.append("Consecutive run comparisons:")
@@ -520,6 +555,9 @@ def render_text(report: Dict[str, Any]) -> str:
                 sv = d["severity"]
                 sev_txt = f"avg severity {sv['mean']}, max {sv['max']}" if sv["n"] else "no text"
                 L.append(f"    {name:<18} {d['count']:>3} ({d['pct']:>5}%)   {sev_txt}")
+            if c.get("is_calibration_pair"):
+                L.append("    (calibration pair - sets the noise floor, not flagged)")
+                continue
             L.append(f"    beyond noise floor: {c['beyond_noise_count']} ({c['beyond_noise_pct']}%)"
                      + (f"   silent drift: {', '.join(c['silent_drift_scenarios'])}"
                         if c["silent_drift_scenarios"] else ""))
@@ -562,8 +600,8 @@ def main(argv: Optional[List[str]] = None) -> int:
     ap.add_argument("--txt", action="store_true", help="Also save a readable .txt copy")
     ap.add_argument("--name-filter", default="moc",
                     help="Only folders whose name contains this (default: moc)")
-    ap.add_argument("--noise-sd", type=float, default=DEFAULT_NOISE_SD,
-                    help=f"Noise threshold = mean + N*sd (default {DEFAULT_NOISE_SD})")
+    ap.add_argument("--noise-percentile", type=float, default=DEFAULT_NOISE_PCT,
+                    help=f"Noise threshold percentile (default {DEFAULT_NOISE_PCT:g})")
     ap.add_argument("--metric-threshold", type=float, default=DEFAULT_METRIC_THRESHOLD,
                     help=f"Headline metric change in pp to flag (default {DEFAULT_METRIC_THRESHOLD})")
     ap.add_argument("--severity-model", default=DEFAULT_SEVERITY_MODEL)
@@ -583,14 +621,14 @@ def main(argv: Optional[List[str]] = None) -> int:
         return 2
 
     scorer = SeverityScorer(args.severity_model)
-    models = [analyze_model(p, runs[p], scorer, args.noise_sd, args.metric_threshold)
+    models = [analyze_model(p, runs[p], scorer, args.noise_percentile, args.metric_threshold)
               for p in sorted(runs)]
 
     report = {
         "generated_at_utc": datetime.now(timezone.utc).isoformat(),
         "source_folder": str(base.resolve()),
         "severity_backend": scorer.backend,
-        "settings": {"noise_sd": args.noise_sd, "metric_threshold_pp": args.metric_threshold,
+        "settings": {"noise_percentile": args.noise_percentile, "metric_threshold_pp": args.metric_threshold,
                      "drift_ratio_cutoff": DRIFT_RATIO_CUTOFF, "name_filter": args.name_filter},
         "level_definitions": LEVEL_NAMES,
         "models": models,
