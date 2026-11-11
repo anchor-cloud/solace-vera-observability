@@ -187,9 +187,13 @@ def get_claude_record(
 
     if not raw_text:
         stop_reason = getattr(response, "stop_reason", None)
+        try:
+            full_response = response.model_dump_json()
+        except Exception:
+            full_response = repr(response)
         raise ValueError(
             "Claude returned an empty response. "
-            f"stop_reason={stop_reason}"
+            f"stop_reason={stop_reason}\nFull response: {full_response}"
         )
 
     candidate = _extract_json_object(raw_text)
